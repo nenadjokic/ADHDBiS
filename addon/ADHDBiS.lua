@@ -37,7 +37,22 @@ local GRAY_COLOR = "|cFF888888"
 local GREEN_DOT = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
 local RED_DOT   = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14|t"
 
-local TAB_LIST  = { "Gear", "Enchants+Gems", "Consumables", "Talents" }
+local TAB_LIST  = { "Gear", "Enchants+Gems", "Consumables", "Talents", "Vault" }
+
+-- Great Vault ilvl rewards by key level / boss count / delve tier (Midnight Season 1)
+-- Update these values each season
+local VAULT_MYTHICPLUS_ILVL = {
+    [2]=606, [3]=606, [4]=610, [5]=610, [6]=613, [7]=616, [8]=616, [9]=619, [10]=623, [11]=623, [12]=626,
+}
+local VAULT_RAID_ILVL = {
+    [17]=610, -- LFR
+    [14]=623, -- Normal
+    [15]=636, -- Heroic
+    [16]=649, -- Mythic
+}
+local VAULT_DELVE_ILVL = {
+    [1]=584, [2]=584, [3]=590, [4]=597, [5]=603, [6]=606, [7]=610, [8]=616,
+}
 
 -- Grid constants
 local GRID_ICON_SIZE = 40
@@ -1170,6 +1185,117 @@ local function RenderTalents()
     scrollChild:SetHeight(math.max(1, rowIndex * ROW_HEIGHT))
 end
 
+-- VAULT TAB (Great Vault weekly progress)
+local function RenderVault()
+    if not C_WeeklyRewards then
+        local row = GetRow(1)
+        row.text:SetText("|cFFFF4444Weekly Vault data not available.|r")
+        row.itemID = nil
+        scrollChild:SetHeight(ROW_HEIGHT)
+        return
+    end
+
+    local rowIndex = 0
+
+    -- Check if vault is ready to claim
+    if C_WeeklyRewards.CanClaimRewards() then
+        rowIndex = rowIndex + 1
+        local row = GetRow(rowIndex)
+        row.text:SetText("|cFFFFD100>> Your Great Vault is ready to open! <<|r")
+        row.itemID = nil
+        rowIndex = rowIndex + 1
+        local spacer = GetRow(rowIndex)
+        spacer.text:SetText("")
+        spacer.itemID = nil
+    end
+
+    -- Helper: render one activity type
+    local function RenderActivity(title, thresholdType, ilvlTable, levelLabel)
+        rowIndex = rowIndex + 1
+        local hdr = GetRow(rowIndex)
+        hdr.text:SetText("|cFFFFD100-- " .. title .. " --|r")
+        hdr.itemID = nil
+
+        local activities = C_WeeklyRewards.GetActivities(thresholdType)
+        if not activities or #activities == 0 then
+            rowIndex = rowIndex + 1
+            local row = GetRow(rowIndex)
+            row.text:SetText("  |cFF888888No data available|r")
+            row.itemID = nil
+            return
+        end
+
+        -- Sort by threshold ascending
+        table.sort(activities, function(a, b) return a.threshold < b.threshold end)
+
+        for i, activity in ipairs(activities) do
+            rowIndex = rowIndex + 1
+            local row = GetRow(rowIndex)
+
+            local progress = activity.progress or 0
+            local threshold = activity.threshold or 1
+            local level = activity.level or 0
+            local unlocked = progress >= threshold
+
+            -- Progress bar (text-based)
+            local barLen = 15
+            local filled = math.min(barLen, math.floor((progress / threshold) * barLen))
+            local bar = ""
+            for j = 1, barLen do
+                if j <= filled then
+                    bar = bar .. "|cFF00FF00|r"
+                else
+                    bar = bar .. "|cFF333333-|r"
+                end
+            end
+
+            -- Predicted ilvl
+            local ilvl = ilvlTable[level] or 0
+            local ilvlStr = ""
+            if unlocked and ilvl > 0 then
+                ilvlStr = " |cFF00FF00ilvl " .. ilvl .. "|r"
+            elseif ilvl > 0 then
+                ilvlStr = " |cFF888888ilvl " .. ilvl .. "|r"
+            end
+
+            -- Level info
+            local levelStr = ""
+            if level > 0 then
+                levelStr = " |cFF888888(" .. levelLabel .. " " .. level .. ")|r"
+            end
+
+            -- Status
+            local status
+            if unlocked then
+                status = "|cFF00FF00UNLOCKED|r"
+            else
+                status = "|cFFFFFFFF" .. progress .. "/" .. threshold .. "|r"
+            end
+
+            row.text:SetText("  Slot " .. i .. ": " .. bar .. " " .. status .. ilvlStr .. levelStr)
+            row.itemID = nil
+        end
+
+        rowIndex = rowIndex + 1
+        local spacer = GetRow(rowIndex)
+        spacer.text:SetText("")
+        spacer.itemID = nil
+    end
+
+    -- Render all 3 activity types
+    RenderActivity("Raids", Enum.WeeklyRewardChestThresholdType.Raid, VAULT_RAID_ILVL, "Difficulty")
+    RenderActivity("Mythic+", Enum.WeeklyRewardChestThresholdType.Activities, VAULT_MYTHICPLUS_ILVL, "Key")
+    RenderActivity("Delves", Enum.WeeklyRewardChestThresholdType.World, VAULT_DELVE_ILVL, "Tier")
+
+    -- Tip at the bottom
+    rowIndex = rowIndex + 1
+    local tip = GetRow(rowIndex)
+    tip.text:SetText("|cFF555555Vault resets weekly on Tuesday (US) / Wednesday (EU)|r")
+    tip.itemID = nil
+
+    scrollChild:SetHeight(math.max(1, rowIndex * ROW_HEIGHT))
+end
+
 -- ============================================================
 -- EXPORT BUTTON OnClick
 -- ============================================================
@@ -1267,7 +1393,7 @@ function ns.RefreshContent()
     scrollChild:SetWidth(mainFrame:GetWidth() - 42)
 
     -- Check if data exists at all
-    if not ADHDBiS_Data or (not ADHDBiS_Data.classes and not ADHDBiS_Data.specs) then
+    if selectedTab ~= 5 and (not ADHDBiS_Data or (not ADHDBiS_Data.classes and not ADHDBiS_Data.specs)) then
         -- No data - show setup message
         gearToggleFrame:Hide()
         scrollFrame:SetPoint("TOPLEFT", tabBar, "BOTTOMLEFT", 0, -4)
@@ -1299,7 +1425,12 @@ function ns.RefreshContent()
 
     -- Update source button
     sourceBtn.label:SetText(selectedSource)
-    sourceBtn:Show()
+    -- Hide source selector on Vault tab (not relevant)
+    if selectedTab == 5 then
+        sourceBtn:Hide()
+    else
+        sourceBtn:Show()
+    end
 
     -- Update tab highlights
     for i, btn in ipairs(tabButtons) do
@@ -1337,6 +1468,8 @@ function ns.RefreshContent()
         RenderConsumables()
     elseif selectedTab == 4 then
         RenderTalents()
+    elseif selectedTab == 5 then
+        RenderVault()
     end
 
     scrollFrame:SetVerticalScroll(0)
@@ -1423,6 +1556,15 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         if mainFrame:IsShown() then
             ns.OnResize()
             ns.RefreshContent()
+        end
+
+        -- Support message (once per login, dismissable forever)
+        local db = GetDB()
+        if not db.hideSupportMsg then
+            C_Timer.After(5, function()
+                print("|cFF9482C9ADHDBiS|r |cFF888888Enjoy the addon? Support development:|r |cFFFFDD00buymeacoffee.com/nenadjokic|r |cFF888888or|r |cFF0070BApaypal.me/nenadjokicRS|r")
+                print("|cFF9482C9ADHDBiS|r |cFF888888Type|r |cFFFFFFFF/adhd dismiss|r |cFF888888to hide this message forever.|r")
+            end)
         end
 
     elseif event == "ACTIVE_TALENT_GROUP_CHANGED" then
@@ -1629,6 +1771,10 @@ SlashCmdList["ADHDBIS"] = function(msg)
     local cmd = msg:lower():trim()
     if cmd == "bis" then
         TogglePanel()
+    elseif cmd == "dismiss" then
+        local db = GetDB()
+        db.hideSupportMsg = true
+        print("|cFF9482C9ADHDBiS:|r Support message hidden. Thank you for using the addon!")
     elseif cmd == "loot" or cmd:find("^loot") then
         -- Delegate to loot tracker
         local subCmd = cmd:match("^loot%s+(.+)") or ""

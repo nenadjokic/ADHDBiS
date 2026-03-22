@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADHDBiS - Changelog</title>
+    <link rel="icon" type="image/png" href="images/favicon.png">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            background: #0a0a1a;
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+        a { color: #9482C9; text-decoration: none; transition: color 0.2s; }
+        a:hover { color: #b8a9e0; }
+
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            background: rgba(10, 10, 26, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #1e1e3a;
+            padding: 0 2rem;
+            display: flex; align-items: center; justify-content: space-between;
+            height: 60px;
+        }
+        .nav-logo {
+            display: flex; align-items: center; gap: 10px;
+            font-size: 1.3rem; font-weight: 700; color: #9482C9;
+        }
+        .nav-logo img { width: 36px; height: 36px; border-radius: 8px; }
+        .nav-links { display: flex; gap: 2rem; }
+        .nav-links a { color: #aaa; font-size: 0.95rem; font-weight: 500; }
+        .nav-links a:hover { color: #fff; }
+
+        .container { max-width: 800px; margin: 0 auto; padding: 100px 2rem 4rem; }
+
+        h1 {
+            font-size: 2.5rem; font-weight: 700; color: #fff;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle { color: #888; font-size: 1.1rem; margin-bottom: 3rem; }
+
+        .release {
+            background: #111128;
+            border: 1px solid #1e1e3a;
+            border-left: 4px solid #6C63FF;
+            border-radius: 0 12px 12px 0;
+            padding: 1.5rem 2rem;
+            margin-bottom: 1.5rem;
+            transition: border-color 0.3s;
+        }
+        .release:hover { border-left-color: #9482C9; }
+        .release:first-of-type { border-left-color: #FFD100; }
+
+        .release-header {
+            display: flex; align-items: baseline; gap: 1rem;
+            margin-bottom: 0.75rem;
+        }
+        .release-version {
+            font-size: 1.4rem; font-weight: 700; color: #9482C9;
+        }
+        .release:first-of-type .release-version { color: #FFD100; }
+        .release-date { font-size: 0.85rem; color: #666; }
+        .release-tag {
+            font-size: 0.7rem; padding: 2px 8px; border-radius: 4px;
+            background: #6C63FF33; color: #6C63FF; font-weight: 600;
+        }
+        .release:first-of-type .release-tag { background: #FFD10033; color: #FFD100; }
+
+        .release ul { list-style: none; padding: 0; }
+        .release li {
+            padding: 4px 0 4px 20px;
+            position: relative;
+            color: #bbb;
+            font-size: 0.95rem;
+        }
+        .release li::before {
+            content: '';
+            position: absolute; left: 0; top: 12px;
+            width: 8px; height: 8px;
+            background: #6C63FF;
+            border-radius: 50%;
+        }
+        .release li strong { color: #fff; }
+        .release li code {
+            font-family: 'SF Mono', Monaco, monospace;
+            background: #1a1a35; padding: 1px 6px; border-radius: 4px;
+            font-size: 0.85rem; color: #9482C9;
+        }
+
+        .release-section {
+            font-size: 0.85rem; font-weight: 600; color: #9482C9;
+            text-transform: uppercase; letter-spacing: 0.05em;
+            margin-top: 1rem; margin-bottom: 0.25rem;
+        }
+
+        footer {
+            text-align: center; padding: 3rem 2rem;
+            border-top: 1px solid #1e1e3a; color: #555; font-size: 0.85rem;
+        }
+
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .container { padding: 80px 1rem 2rem; }
+            h1 { font-size: 1.8rem; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="index.html" class="nav-logo">
+        <img src="images/logo.png" alt="ADHDBiS Logo">
+        ADHDBiS
+    </a>
+    <div class="nav-links">
+        <a href="index.html#features">Features</a>
+        <a href="index.html#download">Download</a>
+        <a href="changelog.html" style="color: #fff;">Changelog</a>
+        <a href="index.html#support" style="color: #FFDD00;">Support</a>
+        <a href="https://github.com/nenadjokic/ADHDBiS" target="_blank" style="color: #9482C9;">GitHub</a>
+    </div>
+</nav>
+
+<div class="container">
+    <h1>Changelog</h1>
+    <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
+
+    <!-- === v1.4.1 (next release placeholder) === -->
+
+    <!-- === v1.4.0 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.4.0</span>
+            <span class="release-date">March 22, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">Addon</p>
+        <ul>
+            <li><strong>BiS Gear Grid</strong> &mdash; replaced text lists with icon grid (40x40) for Gear, Enchants+Gems, and Consumables tabs</li>
+            <li><strong>Loot Tracker</strong> &mdash; new <code>/adhd loot</code> window tracking drops in dungeons and raids in real-time</li>
+            <li><strong>Upgrade Detection</strong> &mdash; green arrow overlay on items with higher ilvl than your equipped gear</li>
+            <li><strong>Wishlist</strong> &mdash; right-click items to bookmark; <code>/adhd loot wishlist</code> to view</li>
+            <li><strong>Sound Alerts</strong> &mdash; distinct sounds for Epic and Legendary drops</li>
+            <li><strong>Epic+ Filter</strong> &mdash; toggle button to hide rare and below items in loot tracker</li>
+            <li><strong>Minimap Button</strong> &mdash; draggable button with left-click (BiS) and right-click (command menu)</li>
+            <li><strong>Detailed Source Info</strong> &mdash; boss name, instance, gear track (Hero 3/6, Myth 2/6) on all items</li>
+            <li><strong>Item Level Display</strong> &mdash; actual ilvl from item links, not base values</li>
+            <li><strong>Equipped Items Dimmed</strong> &mdash; items you already have are desaturated in BiS grid</li>
+            <li><strong>Dressing Room Preview</strong> &mdash; Shift+Click on loot items opens appearance preview</li>
+            <li><strong>Session Management</strong> &mdash; auto-creates sessions per instance, stores last 5, dropdown selector</li>
+            <li>Changed command from <code>/bis</code> to <code>/adhd bis</code> with subcommand system</li>
+            <li>Support message with <code>/adhd dismiss</code> to hide permanently</li>
+        </ul>
+
+        <p class="release-section">Companion App</p>
+        <ul>
+            <li>Fixed Hunter talent page URLs (<code>-spec-builds-pet-talents</code>)</li>
+            <li>Fixed Windwalker Monk hash parsing (trailing <code>*</code> character)</li>
+            <li>All 39 specs now get talents from Icy Veins (Wowhead fallback for edge cases)</li>
+            <li>Builds for Windows, macOS ARM64, macOS Intel, Linux</li>
+        </ul>
+
+        <p class="release-section">Website</p>
+        <ul>
+            <li>One-pager with features, screenshots, commands reference, install guide</li>
+            <li>Download links auto-resolve to latest GitHub release</li>
+            <li>Buy Me a Coffee and PayPal support buttons</li>
+        </ul>
+    </div>
+
+    <!-- === v1.3.0 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.3.0</span>
+            <span class="release-date">March 18, 2026</span>
+        </div>
+        <ul>
+            <li><strong>All 13 classes</strong> &mdash; companion app now scrapes BiS data for every class and spec</li>
+            <li><strong>Dual source</strong> &mdash; switch between Icy Veins and Wowhead data in-game</li>
+            <li><strong>GUI mode</strong> &mdash; companion app opens web UI by default (localhost:8713)</li>
+            <li><strong>Talent code conversion</strong> &mdash; Icy Veins internal hashes converted to WoW import strings</li>
+            <li>Custom compact dropdown menus (no UIDropDownMenu taint)</li>
+            <li>Resizable and movable window with saved position</li>
+        </ul>
+    </div>
+
+    <!-- === v1.0.0 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.0.0</span>
+            <span class="release-date">March 15, 2026</span>
+        </div>
+        <ul>
+            <li>Initial release</li>
+            <li>BiS gear lists for Warlock (all specs)</li>
+            <li>Enchants, gems, consumables tabs</li>
+            <li>Green/red tracking (equipped vs BiS)</li>
+            <li>CLI companion app for data scraping</li>
+        </ul>
+    </div>
+
+</div>
+
+<footer>
+    <p>ADHDBiS &copy; 2026 &bull; <a href="index.html">Home</a> &bull; <a href="https://github.com/nenadjokic/ADHDBiS">GitHub</a></p>
+</footer>
+
+</body>
+</html>
