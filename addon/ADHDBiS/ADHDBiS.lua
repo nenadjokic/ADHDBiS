@@ -1601,7 +1601,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
                         "|cFFFFFFFF/adhd loot|r  |cFF888888- Loot tracker|r\n" ..
                         "|cFFFFFFFF/adhd loot new|r  |cFF888888- New session|r\n" ..
                         "|cFFFFFFFF/adhd loot help|r  |cFF888888- All commands|r\n\n" ..
-                        "|cFF888888Or use the minimap button!|r"
+                        "|cFF888888Or use the minimap button! (Shift+Drag to move)|r"
                     )
 
                     -- Separator
@@ -1670,61 +1670,71 @@ end)
 -- ============================================================
 
 local minimapBtn = CreateFrame("Button", "ADHDBiSMinimapBtn", UIParent)
-minimapBtn:SetSize(32, 32)
+minimapBtn:SetSize(31, 31)
 minimapBtn:SetFrameStrata("MEDIUM")
 minimapBtn:SetFrameLevel(8)
 minimapBtn:EnableMouse(true)
 minimapBtn:SetMovable(true)
 minimapBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-minimapBtn:RegisterForDrag("LeftButton")
 
--- Icon
+-- Background (dark circle) - offset matches WoW standard minimap buttons
+local mmBg = minimapBtn:CreateTexture(nil, "BACKGROUND")
+mmBg:SetSize(21, 21)
+mmBg:SetPoint("TOPLEFT", minimapBtn, "TOPLEFT", 7, -5)
+mmBg:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+
+-- Icon - same offset and size as background
 local mmIcon = minimapBtn:CreateTexture(nil, "ARTWORK")
-mmIcon:SetSize(20, 20)
-mmIcon:SetPoint("CENTER")
+mmIcon:SetSize(17, 17)
+mmIcon:SetPoint("TOPLEFT", minimapBtn, "TOPLEFT", 7, -5)
 mmIcon:SetTexture("Interface\\Icons\\INV_Misc_Book_09")
 
--- Border circle
+-- Border circle - anchored to TOPLEFT (NOT center - WoW tracking border is offset)
 local mmBorder = minimapBtn:CreateTexture(nil, "OVERLAY")
-mmBorder:SetSize(54, 54)
-mmBorder:SetPoint("CENTER")
+mmBorder:SetSize(53, 53)
+mmBorder:SetPoint("TOPLEFT", minimapBtn, "TOPLEFT", 0, 0)
 mmBorder:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
 
--- Background
-local mmBg = minimapBtn:CreateTexture(nil, "BACKGROUND")
-mmBg:SetSize(24, 24)
-mmBg:SetPoint("CENTER")
-mmBg:SetColorTexture(0, 0, 0, 0.6)
+-- Highlight on hover
+local mmHighlight = minimapBtn:CreateTexture(nil, "HIGHLIGHT")
+mmHighlight:SetSize(17, 17)
+mmHighlight:SetPoint("TOPLEFT", minimapBtn, "TOPLEFT", 7, -5)
+mmHighlight:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
 
--- Position around minimap edge
-local function UpdateMinimapPosition(angle)
-    local radius = (Minimap:GetWidth() / 2) + 8
-    local x = math.cos(angle) * radius
-    local y = math.sin(angle) * radius
+-- Free-floating position (saved as x,y relative to UIParent center)
+local mmDragging = false
+
+local function RestoreMinimapPosition()
+    local db = GetDB()
     minimapBtn:ClearAllPoints()
-    minimapBtn:SetPoint("CENTER", Minimap, "CENTER", x, y)
+    if db.minimapX and db.minimapY then
+        minimapBtn:SetPoint("CENTER", UIParent, "CENTER", db.minimapX, db.minimapY)
+    else
+        -- Default: near top-right of minimap
+        local radius = (Minimap:GetWidth() / 2) + 16
+        local x = math.cos(0.8) * radius
+        local y = math.sin(0.8) * radius
+        minimapBtn:SetPoint("CENTER", Minimap, "CENTER", x, y)
+    end
 end
 
--- Default angle (top-right)
-local mmAngle = 0.8
+minimapBtn:SetScript("OnMouseDown", function(self, button)
+    if button == "LeftButton" and IsShiftKeyDown() then
+        mmDragging = true
+        self:StartMoving()
+    end
+end)
 
--- Dragging
-minimapBtn:SetScript("OnDragStart", function(self)
-    self.isDragging = true
-end)
-minimapBtn:SetScript("OnDragStop", function(self)
-    self.isDragging = false
-    local db = GetDB()
-    db.minimapAngle = mmAngle
-end)
-minimapBtn:SetScript("OnUpdate", function(self)
-    if self.isDragging then
-        local mx, my = Minimap:GetCenter()
-        local cx, cy = GetCursorPosition()
-        local scale = UIParent:GetEffectiveScale()
-        cx, cy = cx / scale, cy / scale
-        mmAngle = math.atan2(cy - my, cx - mx)
-        UpdateMinimapPosition(mmAngle)
+minimapBtn:SetScript("OnMouseUp", function(self, button)
+    if mmDragging then
+        mmDragging = false
+        self:StopMovingOrSizing()
+        -- Save position relative to UIParent center
+        local cx, cy = self:GetCenter()
+        local ux, uy = UIParent:GetCenter()
+        local db = GetDB()
+        db.minimapX = cx - ux
+        db.minimapY = cy - uy
     end
 end)
 
@@ -1734,7 +1744,8 @@ minimapBtn:SetScript("OnEnter", function(self)
     GameTooltip:AddLine("|cFF9482C9ADHDBiS|r")
     GameTooltip:AddLine("|cFFFFFFFFLeft-click:|r Toggle BiS Panel", 1, 1, 1)
     GameTooltip:AddLine("|cFFFFFFFFRight-click:|r Commands Menu", 1, 1, 1)
-    GameTooltip:AddLine("|cFF888888Drag to reposition|r", 0.5, 0.5, 0.5)
+    GameTooltip:AddLine("|cFF888888Shift+Drag anywhere to move|r", 0.5, 0.5, 0.5)
+    GameTooltip:AddLine("|cFF888888/adhd minimap hide|r", 0.4, 0.4, 0.4)
     GameTooltip:Show()
 end)
 minimapBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -1847,10 +1858,11 @@ local mmInitFrame = CreateFrame("Frame")
 mmInitFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 mmInitFrame:SetScript("OnEvent", function(self)
     local db = GetDB()
-    if db.minimapAngle then
-        mmAngle = db.minimapAngle
+    RestoreMinimapPosition()
+    -- Hide if user previously chose to hide
+    if db.minimapHidden then
+        minimapBtn:Hide()
     end
-    UpdateMinimapPosition(mmAngle)
     self:UnregisterAllEvents()
 end)
 
@@ -1867,6 +1879,25 @@ SlashCmdList["ADHDBIS"] = function(msg)
         local db = GetDB()
         db.hideSupportMsg = true
         print("|cFF9482C9ADHDBiS:|r Support message hidden. Thank you for using the addon!")
+    elseif cmd == "minimap hide" then
+        local db = GetDB()
+        db.minimapHidden = true
+        minimapBtn:Hide()
+        print("|cFF9482C9ADHDBiS:|r Minimap button hidden. Type |cFFFFFFFF/adhd minimap show|r to restore.")
+    elseif cmd == "minimap show" then
+        local db = GetDB()
+        db.minimapHidden = false
+        minimapBtn:Show()
+        RestoreMinimapPosition()
+        print("|cFF9482C9ADHDBiS:|r Minimap button visible.")
+    elseif cmd == "minimap reset" then
+        local db = GetDB()
+        db.minimapX = nil
+        db.minimapY = nil
+        db.minimapHidden = false
+        minimapBtn:Show()
+        RestoreMinimapPosition()
+        print("|cFF9482C9ADHDBiS:|r Minimap button reset to default position.")
     elseif cmd == "loot" or cmd:find("^loot") then
         -- Delegate to loot tracker
         local subCmd = cmd:match("^loot%s+(.+)") or ""
@@ -1880,6 +1911,9 @@ SlashCmdList["ADHDBIS"] = function(msg)
         print("  |cFFFFFFFF/adhd bis|r - Toggle BiS panel")
         print("  |cFFFFFFFF/adhd loot|r - Toggle Loot Tracker")
         print("  |cFFFFFFFF/adhd loot help|r - All loot tracker commands")
+        print("  |cFFFFFFFF/adhd minimap hide|r - Hide minimap button")
+        print("  |cFFFFFFFF/adhd minimap show|r - Show minimap button")
+        print("  |cFFFFFFFF/adhd minimap reset|r - Reset button to default position")
     end
 end
 
