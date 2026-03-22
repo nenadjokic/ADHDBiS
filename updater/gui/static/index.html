@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADHDBiS Updater</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a12;
+    --bg-card: #12121e;
+    --bg-card-hover: #1a1a2e;
+    --border: #2a2a3e;
+    --text: #e0e0e8;
+    --text-dim: #8888a0;
+    --purple: #8b5cf6;
+    --purple-glow: #7c3aed;
+    --purple-dim: #6d28d9;
+    --gold: #f5c542;
+    --gold-dim: #b8942e;
+    --green: #34d399;
+    --red: #ef4444;
+    --terminal-bg: #08080e;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px 20px 48px;
+  }
+
+  /* Header */
+  header {
+    text-align: center;
+    padding: 32px 0 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 28px;
+  }
+
+  header h1 {
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: 2px;
+    background: linear-gradient(135deg, var(--purple) 0%, var(--gold) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  header p {
+    color: var(--text-dim);
+    font-size: 0.95rem;
+    margin-top: 6px;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+  }
+
+  .card-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+
+  /* Source selection */
+  .source-group {
+    display: flex;
+    gap: 10px;
+  }
+
+  .source-btn {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+
+  .source-btn:hover {
+    border-color: var(--purple);
+    background: rgba(139, 92, 246, 0.08);
+  }
+
+  .source-btn.active {
+    border-color: var(--purple);
+    background: rgba(139, 92, 246, 0.15);
+    color: #fff;
+    box-shadow: 0 0 16px rgba(139, 92, 246, 0.2);
+  }
+
+  /* Class grid */
+  .class-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px;
+  }
+
+  .class-btn {
+    padding: 10px 8px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .class-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--class-color);
+    opacity: 0.5;
+    transition: opacity 0.2s;
+  }
+
+  .class-btn:hover {
+    border-color: var(--class-color);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .class-btn:hover::before {
+    opacity: 1;
+  }
+
+  .class-btn.selected {
+    border-color: var(--class-color);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--class-color) 30%, transparent);
+  }
+
+  .class-btn.selected::before {
+    opacity: 1;
+    height: 4px;
+  }
+
+  .select-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .select-action-btn {
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .select-action-btn:hover {
+    border-color: var(--purple);
+    color: var(--text);
+  }
+
+  /* Addon path */
+  .addon-path {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--terminal-bg);
+    border-radius: 8px;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    word-break: break-all;
+  }
+
+  .addon-path-icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    color: var(--gold);
+  }
+
+  /* Start button */
+  .start-section {
+    text-align: center;
+    padding: 8px 0;
+  }
+
+  .start-btn {
+    padding: 16px 48px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--purple-dim), var(--purple));
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    text-transform: uppercase;
+  }
+
+  .start-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 0 30px rgba(139, 92, 246, 0.5), 0 0 60px rgba(139, 92, 246, 0.2);
+  }
+
+  .start-btn:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .start-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .start-btn.running {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.3); }
+    50% { box-shadow: 0 0 40px rgba(139, 92, 246, 0.6), 0 0 80px rgba(139, 92, 246, 0.2); }
+  }
+
+  .status-text {
+    margin-top: 12px;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    min-height: 20px;
+  }
+
+  .status-text.running {
+    color: var(--purple);
+  }
+
+  .status-text.done {
+    color: var(--green);
+  }
+
+  .status-text.error {
+    color: var(--red);
+  }
+
+  /* Progress log */
+  .log-card {
+    display: none;
+  }
+
+  .log-card.visible {
+    display: block;
+  }
+
+  .log-area {
+    background: var(--terminal-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    height: 340px;
+    overflow-y: auto;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: #b0b0c0;
+    scroll-behavior: smooth;
+  }
+
+  .log-area::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .log-area::-webkit-scrollbar-track {
+    background: var(--terminal-bg);
+  }
+
+  .log-area::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+  }
+
+  .log-line {
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .log-line.heading {
+    color: var(--gold);
+    font-weight: 600;
+  }
+
+  .log-line.warning {
+    color: #fb923c;
+  }
+
+  .log-line.error {
+    color: var(--red);
+  }
+
+  .log-line.success {
+    color: var(--green);
+    font-weight: 600;
+  }
+
+  .log-line.info {
+    color: var(--text-dim);
+  }
+
+  .log-line.fetch {
+    color: #60a5fa;
+  }
+
+  /* Spinner */
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--purple);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Summary */
+  .summary {
+    display: none;
+    margin-top: 16px;
+    padding: 16px 20px;
+    background: rgba(52, 211, 153, 0.08);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+    border-radius: 8px;
+    text-align: center;
+  }
+
+  .summary.visible {
+    display: block;
+  }
+
+  .summary-title {
+    color: var(--green);
+    font-weight: 700;
+    font-size: 1.05rem;
+    margin-bottom: 4px;
+  }
+
+  .summary-detail {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>ADHDBiS Updater</h1>
+    <p>Best-in-Slot data for every WoW class, right in your addon</p>
+  </header>
+
+  <!-- Source Selection -->
+  <div class="card">
+    <div class="card-title">Data Source</div>
+    <div class="source-group">
+      <button class="source-btn active" data-source="Icy Veins">Icy Veins</button>
+      <button class="source-btn" data-source="Wowhead">Wowhead</button>
+      <button class="source-btn" data-source="Both">Both</button>
+    </div>
+  </div>
+
+  <!-- Class Selection -->
+  <div class="card">
+    <div class="card-title">Classes</div>
+    <div class="select-actions">
+      <button class="select-action-btn" id="selectAll">Select All</button>
+      <button class="select-action-btn" id="selectNone">Clear</button>
+    </div>
+    <div class="class-grid" id="classGrid"></div>
+  </div>
+
+  <!-- Addon Path -->
+  <div class="card">
+    <div class="card-title">Addon Path</div>
+    <div class="addon-path">
+      <svg class="addon-path-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      <span id="addonPath">Loading...</span>
+    </div>
+  </div>
+
+  <!-- Start Button -->
+  <div class="card start-section">
+    <button class="start-btn" id="startBtn">Update BiS Data</button>
+    <div class="status-text" id="statusText"></div>
+  </div>
+
+  <!-- Progress Log -->
+  <div class="card log-card" id="logCard">
+    <div class="card-title">Progress</div>
+    <div class="log-area" id="logArea"></div>
+    <div class="summary" id="summary">
+      <div class="summary-title">Update Complete!</div>
+      <div class="summary-detail" id="summaryDetail"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var CLASS_COLORS = {
+    'Death Knight': '#C41E3A',
+    'Demon Hunter': '#A330C9',
+    'Druid': '#FF7C0A',
+    'Evoker': '#33937F',
+    'Hunter': '#AAD372',
+    'Mage': '#3FC7EB',
+    'Monk': '#00FF98',
+    'Paladin': '#F48CBA',
+    'Priest': '#FFFFFF',
+    'Rogue': '#FFF468',
+    'Shaman': '#0070DD',
+    'Warlock': '#8788EE',
+    'Warrior': '#C69B6D'
+  };
+
+  var classes = [];
+  var selectedClasses = {};
+  var selectedSource = 'Icy Veins';
+  var isRunning = false;
+
+  var classGrid = document.getElementById('classGrid');
+  var addonPath = document.getElementById('addonPath');
+  var startBtn = document.getElementById('startBtn');
+  var statusText = document.getElementById('statusText');
+  var logCard = document.getElementById('logCard');
+  var logArea = document.getElementById('logArea');
+  var summary = document.getElementById('summary');
+  var summaryDetail = document.getElementById('summaryDetail');
+
+  function selectedCount() {
+    var n = 0;
+    for (var k in selectedClasses) { if (selectedClasses[k]) n++; }
+    return n;
+  }
+
+  function selectedIndices() {
+    var arr = [];
+    for (var k in selectedClasses) { if (selectedClasses[k]) arr.push(parseInt(k)); }
+    return arr;
+  }
+
+  // Fetch classes
+  fetch('/api/classes')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      classes = data;
+      for (var i = 0; i < classes.length; i++) selectedClasses[i] = true;
+      renderClasses();
+    });
+
+  // Fetch config
+  fetch('/api/config')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      addonPath.textContent = data.addonsPath || 'Not configured';
+    });
+
+  function renderClasses() {
+    classGrid.innerHTML = '';
+    for (var i = 0; i < classes.length; i++) {
+      (function(idx) {
+        var cls = classes[idx];
+        var btn = document.createElement('button');
+        btn.className = 'class-btn' + (selectedClasses[idx] ? ' selected' : '');
+        btn.textContent = cls.Name;
+        btn.style.setProperty('--class-color', CLASS_COLORS[cls.Name] || '#888');
+        btn.addEventListener('click', function() {
+          if (isRunning) return;
+          selectedClasses[idx] = !selectedClasses[idx];
+          btn.classList.toggle('selected');
+        });
+        classGrid.appendChild(btn);
+      })(i);
+    }
+  }
+
+  // Select all / clear
+  document.getElementById('selectAll').addEventListener('click', function() {
+    if (isRunning) return;
+    for (var i = 0; i < classes.length; i++) selectedClasses[i] = true;
+    renderClasses();
+  });
+
+  document.getElementById('selectNone').addEventListener('click', function() {
+    if (isRunning) return;
+    for (var i = 0; i < classes.length; i++) selectedClasses[i] = false;
+    renderClasses();
+  });
+
+  // Source buttons
+  var sourceBtns = document.querySelectorAll('.source-btn');
+  for (var s = 0; s < sourceBtns.length; s++) {
+    (function(btn) {
+      btn.addEventListener('click', function() {
+        if (isRunning) return;
+        for (var j = 0; j < sourceBtns.length; j++) sourceBtns[j].classList.remove('active');
+        btn.classList.add('active');
+        selectedSource = btn.getAttribute('data-source');
+      });
+    })(sourceBtns[s]);
+  }
+
+  // Classify log line
+  function classifyLine(text) {
+    if (text.indexOf('===') === 0) return 'heading';
+    if (text.indexOf('Warning:') >= 0 || text.indexOf('Parse warning:') >= 0) return 'warning';
+    if (text.indexOf('Error:') === 0 || text.indexOf('failed:') >= 0) return 'error';
+    if (text.indexOf('Update complete!') >= 0 || text.indexOf('Reload your UI') >= 0) return 'success';
+    if (text.indexOf('  Fetching') === 0) return 'fetch';
+    if (text.indexOf('    Found') === 0) return 'info';
+    if (text.indexOf('Wrote:') >= 0) return 'info';
+    return '';
+  }
+
+  function appendLog(text) {
+    var lines = text.replace(/\\n/g, '\n').split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (line === '') continue;
+      var div = document.createElement('div');
+      div.className = 'log-line';
+      var cls = classifyLine(line);
+      if (cls) div.className += ' ' + cls;
+      div.textContent = line;
+      logArea.appendChild(div);
+    }
+    logArea.scrollTop = logArea.scrollHeight;
+  }
+
+  // Start scrape
+  startBtn.addEventListener('click', function() {
+    if (isRunning) return;
+    if (selectedCount() === 0) {
+      statusText.textContent = 'Select at least one class';
+      statusText.className = 'status-text error';
+      return;
+    }
+
+    isRunning = true;
+    startBtn.disabled = true;
+    startBtn.classList.add('running');
+    startBtn.textContent = 'Updating...';
+    statusText.innerHTML = '<span class="spinner"></span>Scraping in progress...';
+    statusText.className = 'status-text running';
+    logCard.classList.add('visible');
+    logArea.innerHTML = '';
+    summary.classList.remove('visible');
+
+    // Build request: send empty array for "all classes"
+    var classIndices = selectedCount() === classes.length ? [] : selectedIndices();
+
+    fetch('/api/scrape', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: selectedSource,
+        classes: classIndices
+      })
+    })
+    .then(function(r) {
+      if (!r.ok) return r.text().then(function(t) { throw new Error(t); });
+      return r.json();
+    })
+    .then(function() {
+      // Connect SSE
+      var es = new EventSource('/api/progress');
+      es.onmessage = function(e) {
+        var data = e.data;
+        if (data === '[[DONE]]') {
+          es.close();
+          isRunning = false;
+          startBtn.disabled = false;
+          startBtn.classList.remove('running');
+          startBtn.textContent = 'Update BiS Data';
+          statusText.textContent = 'Update complete!';
+          statusText.className = 'status-text done';
+          summary.classList.add('visible');
+          summaryDetail.textContent = 'Reload your UI in-game with /reload';
+          return;
+        }
+        appendLog(data);
+      };
+      es.onerror = function() {
+        es.close();
+        isRunning = false;
+        startBtn.disabled = false;
+        startBtn.classList.remove('running');
+        startBtn.textContent = 'Update BiS Data';
+        statusText.textContent = 'Connection lost';
+        statusText.className = 'status-text error';
+      };
+    })
+    .catch(function(err) {
+      isRunning = false;
+      startBtn.disabled = false;
+      startBtn.classList.remove('running');
+      startBtn.textContent = 'Update BiS Data';
+      statusText.textContent = 'Error: ' + err.message;
+      statusText.className = 'status-text error';
+    });
+  });
+})();
+</script>
+</body>
+</html>

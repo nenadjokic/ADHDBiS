@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADHDBiS - Best in Slot Addon for World of Warcraft</title>
+    <link rel="icon" type="image/png" href="images/favicon.png">
+    <style>
+        /* === RESET & BASE === */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+            background: #0a0a1a;
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+        a { color: #9482C9; text-decoration: none; transition: color 0.2s; }
+        a:hover { color: #b8a9e0; }
+
+        /* === NAV === */
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            background: rgba(10, 10, 26, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #1e1e3a;
+            padding: 0 2rem;
+            display: flex; align-items: center; justify-content: space-between;
+            height: 60px;
+        }
+        .nav-logo {
+            display: flex; align-items: center; gap: 10px;
+            font-size: 1.3rem; font-weight: 700; color: #9482C9;
+        }
+        .nav-logo img { width: 36px; height: 36px; border-radius: 8px; }
+        .nav-links { display: flex; gap: 2rem; }
+        .nav-links a { color: #aaa; font-size: 0.95rem; font-weight: 500; }
+        .nav-links a:hover { color: #fff; }
+
+        /* === HERO === */
+        .hero {
+            position: relative;
+            min-height: 90vh;
+            display: flex; align-items: center; justify-content: center;
+            text-align: center;
+            overflow: hidden;
+        }
+        .hero-bg {
+            position: absolute; inset: 0;
+            background: url('images/hero-banner.png') center/cover no-repeat;
+            filter: brightness(0.3);
+            z-index: 0;
+        }
+        .hero-content {
+            position: relative; z-index: 1;
+            max-width: 800px; padding: 2rem;
+        }
+        .hero h1 {
+            font-size: 3.5rem; font-weight: 800;
+            background: linear-gradient(135deg, #9482C9, #6C63FF, #A335EE);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+        .hero p {
+            font-size: 1.25rem; color: #bbb; margin-bottom: 2rem;
+            max-width: 600px; margin-left: auto; margin-right: auto;
+        }
+        .hero-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+        /* === BUTTONS === */
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 14px 28px; border-radius: 10px;
+            font-size: 1rem; font-weight: 600;
+            border: none; cursor: pointer; transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #6C63FF, #9482C9);
+            color: #fff; box-shadow: 0 4px 20px rgba(108, 99, 255, 0.3);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(108, 99, 255, 0.5);
+            color: #fff;
+        }
+        .btn-secondary {
+            background: rgba(148, 130, 201, 0.15);
+            color: #9482C9; border: 1px solid rgba(148, 130, 201, 0.3);
+        }
+        .btn-secondary:hover {
+            background: rgba(148, 130, 201, 0.25);
+            transform: translateY(-2px); color: #b8a9e0;
+        }
+
+        /* === SECTIONS === */
+        section { padding: 6rem 2rem; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        .section-title {
+            font-size: 2.2rem; font-weight: 700;
+            text-align: center; margin-bottom: 1rem;
+            color: #fff;
+        }
+        .section-subtitle {
+            text-align: center; color: #888; font-size: 1.1rem;
+            margin-bottom: 3rem; max-width: 600px; margin-left: auto; margin-right: auto;
+        }
+
+        /* === FEATURES GRID === */
+        .features-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
+        }
+        .feature-card {
+            background: #111128;
+            border: 1px solid #1e1e3a;
+            border-radius: 16px;
+            padding: 2rem;
+            transition: all 0.3s;
+        }
+        .feature-card:hover {
+            border-color: #9482C9;
+            transform: translateY(-4px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        }
+        .feature-card h3 {
+            font-size: 1.3rem; color: #fff; margin-bottom: 0.5rem;
+        }
+        .feature-icon {
+            font-size: 2rem; margin-bottom: 1rem;
+            display: inline-block;
+        }
+        .feature-card p { color: #999; font-size: 0.95rem; }
+
+        /* === SCREENSHOT SECTION === */
+        .screenshots {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem; margin-top: 2rem;
+        }
+        .screenshot {
+            border-radius: 12px; overflow: hidden;
+            border: 1px solid #1e1e3a;
+            transition: all 0.3s;
+        }
+        .screenshot:hover {
+            border-color: #9482C9;
+            transform: scale(1.02);
+        }
+        .screenshot img { width: 100%; display: block; }
+        .screenshot-caption {
+            padding: 1rem;
+            background: #111128;
+            font-size: 0.9rem; color: #aaa;
+            text-align: center;
+        }
+
+        /* === DOWNLOAD SECTION === */
+        #download { background: #0e0e24; }
+        .download-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        .download-card {
+            background: #111128;
+            border: 1px solid #1e1e3a;
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .download-card:hover {
+            border-color: #9482C9;
+            transform: translateY(-4px);
+        }
+        .download-card h3 { color: #fff; margin-bottom: 0.5rem; }
+        .download-card p { color: #888; font-size: 0.85rem; margin-bottom: 1.5rem; }
+        .download-card .btn { width: 100%; justify-content: center; }
+        .download-icon { font-size: 2.5rem; margin-bottom: 1rem; display: block; }
+
+        /* === COMMANDS SECTION === */
+        .commands-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1.5rem;
+        }
+        .commands-table th {
+            text-align: left;
+            padding: 12px 16px;
+            background: #16162e;
+            color: #9482C9;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .commands-table td {
+            padding: 10px 16px;
+            border-bottom: 1px solid #1a1a35;
+            font-size: 0.95rem;
+        }
+        .commands-table tr:hover { background: rgba(148, 130, 201, 0.05); }
+        .cmd { font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; color: #6C63FF; }
+
+        /* === HOW TO INSTALL === */
+        .steps {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem; margin-top: 2rem;
+        }
+        .step {
+            background: #111128;
+            border: 1px solid #1e1e3a;
+            border-radius: 16px;
+            padding: 2rem;
+            text-align: center;
+        }
+        .step-number {
+            width: 48px; height: 48px;
+            background: linear-gradient(135deg, #6C63FF, #9482C9);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.3rem; font-weight: 700; color: #fff;
+            margin: 0 auto 1rem;
+        }
+        .step h3 { color: #fff; margin-bottom: 0.5rem; }
+        .step p { color: #999; font-size: 0.9rem; }
+
+        /* === FOOTER === */
+        footer {
+            text-align: center;
+            padding: 3rem 2rem;
+            border-top: 1px solid #1e1e3a;
+            color: #555;
+            font-size: 0.85rem;
+        }
+
+        /* === RESPONSIVE === */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.2rem; }
+            .hero p { font-size: 1rem; }
+            .nav-links { display: none; }
+            section { padding: 4rem 1rem; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+    <a href="#" class="nav-logo">
+        <img src="images/logo.png" alt="ADHDBiS Logo">
+        ADHDBiS
+    </a>
+    <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#screenshots">Screenshots</a>
+        <a href="#commands">Commands</a>
+        <a href="#install">Install</a>
+        <a href="#download">Download</a>
+        <a href="https://github.com/nenadjokic/ADHDBiS" target="_blank" style="color: #9482C9;">GitHub</a>
+    </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-content">
+        <h1>ADHDBiS</h1>
+        <p>Your all-in-one Best in Slot gear tracker, loot tracker, and raid companion addon for World of Warcraft: Midnight.</p>
+        <div class="hero-buttons">
+            <a href="#download" class="btn btn-primary">Download Addon</a>
+            <a href="#features" class="btn btn-secondary">Learn More</a>
+        </div>
+    </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+    <div class="container">
+        <h2 class="section-title">Everything You Need in One Addon</h2>
+        <p class="section-subtitle">BiS gear lists, real-time loot tracking, upgrade detection, and more &mdash; all without alt-tabbing.</p>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <span class="feature-icon">&#x1F9E9;</span>
+                <h3>BiS Gear Grid</h3>
+                <p>Visual icon grid showing Best in Slot gear for every class and spec. Green border = equipped, red = you need it. Items you already have are dimmed so you focus on upgrades.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">&#x1F4E6;</span>
+                <h3>Loot Tracker</h3>
+                <p>Real-time loot tracking in dungeons and raids. See every drop organized by boss, with item level, gear track (Hero 3/6, Myth 2/6), and who received each item.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">&#x2B06;</span>
+                <h3>Upgrade Detection</h3>
+                <p>Instantly see which drops are upgrades for you with a green arrow overlay. Item levels are highlighted in green when they beat your currently equipped gear.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">&#x2B50;</span>
+                <h3>Wishlist</h3>
+                <p>Right-click any loot item to bookmark it. Track which items you want to roll for at the end of the raid. View your full wishlist with a single command.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">&#x1F50A;</span>
+                <h3>Sound Alerts</h3>
+                <p>Hear a distinct sound when Epic or Legendary items drop. Never miss an important piece of loot, even when you're focused on the fight.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">&#x1F48E;</span>
+                <h3>Enchants, Gems & Consumables</h3>
+                <p>Complete BiS lists for enchants, gems, and consumables in the same icon grid format. Green = you have it, red = you're missing it.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">&#x1F4CB;</span>
+                <h3>Talent Builds</h3>
+                <p>Recommended talent builds for Raid, M+, Delves and PvP. One-click copy of import strings directly into WoW's talent UI.</p>
+            </div>
+            <div class="feature-card">
+                <span class="feature-icon">&#x1F310;</span>
+                <h3>Dual Source</h3>
+                <p>BiS data from both Icy Veins and Wowhead. Switch between sources in-game to compare recommendations. Supports all 13 classes and 39 specs.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- SCREENSHOTS -->
+<section id="screenshots" style="background: #0e0e24;">
+    <div class="container">
+        <h2 class="section-title">See It in Action</h2>
+        <p class="section-subtitle">Clean, visual interface designed for fast decision-making.</p>
+
+        <div class="screenshots">
+            <div class="screenshot">
+                <img src="images/bis-panel.png" alt="BiS Panel - Icon grid showing Best in Slot gear">
+                <div class="screenshot-caption">BiS Gear Grid &mdash; Icon-based gear view with equipped status</div>
+            </div>
+            <div class="screenshot">
+                <img src="images/loot-tracker.png" alt="Loot Tracker - Real-time dungeon loot tracking">
+                <div class="screenshot-caption">Loot Tracker &mdash; Live drop tracking with ilvl, track & player</div>
+            </div>
+            <div class="screenshot">
+                <img src="images/companion-app.png" alt="Companion App - Data updater with GUI">
+                <div class="screenshot-caption">Companion App &mdash; Update BiS data with one click</div>
+            </div>
+            <div class="screenshot">
+                <img src="images/grid-view.png" alt="Grid View - Enchants and gems">
+                <div class="screenshot-caption">Enchants & Gems &mdash; Visual checklist for all enhancements</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- COMMANDS -->
+<section id="commands">
+    <div class="container">
+        <h2 class="section-title">Commands Reference</h2>
+        <p class="section-subtitle">Everything is accessible via the minimap button or slash commands.</p>
+
+        <table class="commands-table">
+            <thead>
+                <tr><th>Command</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><span class="cmd">/adhd bis</span></td><td>Toggle the BiS gear panel</td></tr>
+                <tr><td><span class="cmd">/adhd loot</span></td><td>Toggle the Loot Tracker window</td></tr>
+                <tr><td><span class="cmd">/adhd loot new</span></td><td>Start a new loot session (auto-names with instance)</td></tr>
+                <tr><td><span class="cmd">/adhd loot new My Raid</span></td><td>Start a new loot session with a custom name</td></tr>
+                <tr><td><span class="cmd">/adhd loot start</span></td><td>Resume loot tracking</td></tr>
+                <tr><td><span class="cmd">/adhd loot stop</span></td><td>Pause loot tracking</td></tr>
+                <tr><td><span class="cmd">/adhd loot summary</span></td><td>Print full session summary to chat</td></tr>
+                <tr><td><span class="cmd">/adhd loot wishlist</span></td><td>Show all wishlisted items</td></tr>
+                <tr><td><span class="cmd">/adhd loot help</span></td><td>Show all loot tracker commands</td></tr>
+            </tbody>
+        </table>
+
+        <div style="margin-top: 2rem; padding: 1.5rem; background: #111128; border-radius: 12px; border: 1px solid #1e1e3a;">
+            <h3 style="color: #fff; margin-bottom: 0.5rem;">Grid Controls</h3>
+            <p style="color: #999; font-size: 0.95rem;">
+                <strong style="color: #ccc;">Shift+Click</strong> &mdash; Preview item (Dressing Room) &nbsp;&bull;&nbsp;
+                <strong style="color: #ccc;">Ctrl+Click</strong> &mdash; Link item to chat &nbsp;&bull;&nbsp;
+                <strong style="color: #ccc;">Right-Click</strong> &mdash; Toggle wishlist bookmark
+            </p>
+        </div>
+    </div>
+</section>
+
+<!-- HOW TO INSTALL -->
+<section id="install" style="background: #0e0e24;">
+    <div class="container">
+        <h2 class="section-title">How to Install</h2>
+        <p class="section-subtitle">Up and running in under 2 minutes.</p>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <h3>Download the Addon</h3>
+                <p>Download the ADHDBiS addon zip and extract it into your <code style="color: #6C63FF;">World of Warcraft/_midnight_/Interface/AddOns/</code> folder.</p>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <h3>Run the Companion App</h3>
+                <p>Download and run the ADHDBiS Updater for your platform. Select your source (Icy Veins or Wowhead), pick your classes, and click Update.</p>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <h3>Reload & Play</h3>
+                <p>Type <code style="color: #6C63FF;">/reload</code> in WoW, then <code style="color: #6C63FF;">/adhd bis</code> to open the BiS panel. The minimap button gives you quick access to everything.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- DOWNLOAD -->
+<section id="download">
+    <div class="container">
+        <h2 class="section-title">Download</h2>
+        <p class="section-subtitle">Get the addon and companion app for your platform.</p>
+
+        <div class="download-grid">
+            <!-- ADDON -->
+            <div class="download-card" style="border-color: #6C63FF;">
+                <span class="download-icon">&#x1F3AE;</span>
+                <h3>ADHDBiS Addon</h3>
+                <p>The WoW addon itself. Extract to your AddOns folder.</p>
+                <a href="https://github.com/nenadjokic/ADHDBiS/releases/latest/download/ADHDBiS.zip" class="btn btn-primary">Download Addon (.zip)</a>
+            </div>
+
+            <!-- WINDOWS -->
+            <div class="download-card">
+                <span class="download-icon">&#x1FA9F;</span>
+                <h3>Companion App &mdash; Windows</h3>
+                <p>64-bit Windows executable. Double-click to run the GUI updater.</p>
+                <a href="https://github.com/nenadjokic/ADHDBiS/releases/latest/download/adhdbis-updater.exe" class="btn btn-secondary">Download .exe</a>
+            </div>
+
+            <!-- macOS ARM -->
+            <div class="download-card">
+                <span class="download-icon">&#x1F34E;</span>
+                <h3>Companion App &mdash; macOS (Apple Silicon)</h3>
+                <p>For M1/M2/M3/M4 Macs. Native ARM64 binary.</p>
+                <a href="https://github.com/nenadjokic/ADHDBiS/releases/latest/download/adhdbis-updater-mac-arm64" class="btn btn-secondary">Download (ARM64)</a>
+            </div>
+
+            <!-- macOS Intel -->
+            <div class="download-card">
+                <span class="download-icon">&#x1F34E;</span>
+                <h3>Companion App &mdash; macOS (Intel)</h3>
+                <p>For older Intel-based Macs. AMD64 binary.</p>
+                <a href="https://github.com/nenadjokic/ADHDBiS/releases/latest/download/adhdbis-updater-mac-amd64" class="btn btn-secondary">Download (Intel)</a>
+            </div>
+
+            <!-- Linux -->
+            <div class="download-card">
+                <span class="download-icon">&#x1F427;</span>
+                <h3>Companion App &mdash; Linux</h3>
+                <p>64-bit Linux binary. Make executable with <code>chmod +x</code>.</p>
+                <a href="https://github.com/nenadjokic/ADHDBiS/releases/latest/download/adhdbis-updater-linux" class="btn btn-secondary">Download (Linux)</a>
+            </div>
+        </div>
+
+        <p style="text-align: center; margin-top: 2rem; color: #666; font-size: 0.85rem;">
+            Version 1.4.0 &bull; Compatible with WoW: Midnight (12.x) &bull; All classes and specs supported
+        </p>
+        <p style="text-align: center; margin-top: 0.5rem;">
+            <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank" class="btn btn-secondary" style="padding: 8px 20px; font-size: 0.85rem;">
+                View All Versions &amp; Changelog on GitHub
+            </a>
+        </p>
+    </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+    <p>ADHDBiS &copy; 2026 &bull; Built for World of Warcraft: Midnight</p>
+    <p style="margin-top: 0.5rem;">Not affiliated with Blizzard Entertainment. World of Warcraft is a trademark of Blizzard Entertainment, Inc.</p>
+</footer>
+
+</body>
+</html>

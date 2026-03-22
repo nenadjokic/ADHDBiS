@@ -1,0 +1,15 @@
+# Binaries
+*.exe
+adhdbis-updater-*
+*.app/
+
+# Build artifacts
+*.zip
+www/downloads/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Go
+vendor/

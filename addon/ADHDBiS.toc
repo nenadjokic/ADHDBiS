@@ -1,0 +1,10 @@
+## Interface: 120001
+## Title: ADHDBiS
+## Notes: Best in Slot gear, enchants, gems, consumables & Loot Tracker for any WoW class
+## Author: wowadd
+## Version: 1.4.0
+## SavedVariables: ADHDBiSDB, ADHDBiS_LootDB
+
+ADHDBiS_Data.lua
+ADHDBiS.lua
+ADHDBiS_LootTracker.lua
