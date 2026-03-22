@@ -1558,12 +1558,104 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             ns.RefreshContent()
         end
 
-        -- Support message (once per login, dismissable forever)
-        local db = GetDB()
+        -- Welcome popup (once per login, dismissable forever)
         if not db.hideSupportMsg then
-            C_Timer.After(5, function()
-                print("|cFF9482C9ADHDBiS|r |cFF888888Enjoy the addon? Support development:|r |cFFFFDD00buymeacoffee.com/nenadjokic|r |cFF888888or|r |cFF0070BApaypal.me/nenadjokicRS|r")
-                print("|cFF9482C9ADHDBiS|r |cFF888888Type|r |cFFFFFFFF/adhd dismiss|r |cFF888888to hide this message forever.|r")
+            C_Timer.After(3, function()
+                if not ns.welcomePopup then
+                    local pop = CreateFrame("Frame", "ADHDBiSWelcome", UIParent, "BackdropTemplate")
+                    pop:SetSize(340, 310)
+                    pop:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
+                    pop:SetFrameStrata("DIALOG")
+                    pop:SetBackdrop({
+                        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+                        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                        tile = true, tileSize = 16, edgeSize = 16,
+                        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+                    })
+                    pop:SetBackdropColor(0.05, 0.05, 0.1, 0.95)
+                    pop:SetBackdropBorderColor(0.4, 0.2, 0.6, 0.9)
+                    pop:EnableMouse(true)
+                    pop:SetMovable(true)
+                    pop:RegisterForDrag("LeftButton")
+                    pop:SetScript("OnDragStart", function(self) self:StartMoving() end)
+                    pop:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+
+                    -- Title
+                    local title = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+                    title:SetPoint("TOP", pop, "TOP", 0, -16)
+                    title:SetText("|cFF9482C9ADHDBiS|r")
+
+                    -- Subtitle
+                    local sub = pop:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+                    sub:SetPoint("TOP", title, "BOTTOM", 0, -4)
+                    sub:SetText("|cFFBBBBBBBest in Slot & Loot Tracker|r")
+
+                    -- Commands
+                    local cmds = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    cmds:SetPoint("TOP", sub, "BOTTOM", 0, -14)
+                    cmds:SetWidth(300)
+                    cmds:SetJustifyH("LEFT")
+                    cmds:SetSpacing(3)
+                    cmds:SetText(
+                        "|cFFFFFFFF/adhd bis|r  |cFF888888- BiS gear panel|r\n" ..
+                        "|cFFFFFFFF/adhd loot|r  |cFF888888- Loot tracker|r\n" ..
+                        "|cFFFFFFFF/adhd loot new|r  |cFF888888- New session|r\n" ..
+                        "|cFFFFFFFF/adhd loot help|r  |cFF888888- All commands|r\n\n" ..
+                        "|cFF888888Or use the minimap button!|r"
+                    )
+
+                    -- Separator
+                    local sep = pop:CreateTexture(nil, "ARTWORK")
+                    sep:SetHeight(1)
+                    sep:SetPoint("LEFT", pop, "LEFT", 16, 0)
+                    sep:SetPoint("RIGHT", pop, "RIGHT", -16, 0)
+                    sep:SetPoint("TOP", cmds, "BOTTOM", 0, -10)
+                    sep:SetColorTexture(0.3, 0.2, 0.5, 0.5)
+
+                    -- Support text
+                    local support = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    support:SetPoint("TOP", sep, "BOTTOM", 0, -10)
+                    support:SetWidth(300)
+                    support:SetJustifyH("CENTER")
+                    support:SetText(
+                        "|cFFBBBBBBEnjoy the addon? Support development!|r\n" ..
+                        "|cFFFFDD00buymeacoffee.com/nenadjokic|r\n" ..
+                        "|cFF0070BApaypal.me/nenadjokicRS|r"
+                    )
+
+                    -- "Don't show again" button
+                    local dismissBtn = CreateFrame("Button", nil, pop)
+                    dismissBtn:SetSize(200, 28)
+                    dismissBtn:SetPoint("BOTTOM", pop, "BOTTOM", 0, 40)
+                    local dismissBg = dismissBtn:CreateTexture(nil, "BACKGROUND")
+                    dismissBg:SetAllPoints()
+                    dismissBg:SetColorTexture(0.3, 0.15, 0.15, 0.8)
+                    local dismissTxt = dismissBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    dismissTxt:SetPoint("CENTER")
+                    dismissTxt:SetText("|cFFFF8888Don't show me this again|r")
+                    dismissBtn:SetScript("OnClick", function()
+                        local d = GetDB()
+                        d.hideSupportMsg = true
+                        pop:Hide()
+                        print("|cFF9482C9ADHDBiS:|r Welcome popup hidden permanently.")
+                    end)
+                    dismissBtn:SetScript("OnEnter", function() dismissTxt:SetText("|cFFFFAAAADon't show me this again|r") end)
+                    dismissBtn:SetScript("OnLeave", function() dismissTxt:SetText("|cFFFF8888Don't show me this again|r") end)
+
+                    -- Close button (X) to dismiss for this session only
+                    local closeBtn = CreateFrame("Button", nil, pop)
+                    closeBtn:SetSize(22, 22)
+                    closeBtn:SetPoint("TOPRIGHT", pop, "TOPRIGHT", -6, -6)
+                    local closeTxt = closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+                    closeTxt:SetPoint("CENTER")
+                    closeTxt:SetText("|cFFFF4444X|r")
+                    closeBtn:SetScript("OnClick", function() pop:Hide() end)
+                    closeBtn:SetScript("OnEnter", function() closeTxt:SetText("|cFFFF8888X|r") end)
+                    closeBtn:SetScript("OnLeave", function() closeTxt:SetText("|cFFFF4444X|r") end)
+
+                    ns.welcomePopup = pop
+                end
+                ns.welcomePopup:Show()
             end)
         end
 
