@@ -107,8 +107,10 @@ func extractMarkup(body []byte) string {
 // --- Gear parsing ---
 
 // Matches gear table rows: [tr][td]Slot[/td][td]...[item=XXXXX...]...[/td][td]Source[/td][/tr]
-// Wowhead uses [item=XXXXX bonus=YYY] or [item=XXXXX]
-var wowheadItemRegex = regexp.MustCompile(`\[item=(\d+)(?:\s+[^\]]*)?\]`)
+// Wowhead uses [item=XXXXX bonus=YYY ilvl=ZZZ] or [item=XXXXX]
+var wowheadItemRegex = regexp.MustCompile(`\[item=(\d+)((?:\s+[^\]]*)?)\]`)
+var wowheadBonusRegex = regexp.MustCompile(`bonus=([0-9:]+)`)
+var wowheadIlvlRegex = regexp.MustCompile(`ilvl=(\d+)`)
 
 // gearRowRegex matches a table row with 3 columns: slot, item(s), source
 var gearRowRegex = regexp.MustCompile(`\[tr\]\[td\]([^[]*)\[/td\]\[td\](.*?)\[/td\]\[td\](.*?)\[/td\]\[/tr\]`)
@@ -162,7 +164,7 @@ func ParseWowheadGear(body []byte) (raid []GearItem, mythic []GearItem, err erro
 		// Extract source from [url...]Name[/url] or plain text
 		source := extractTextFromMarkup(sourceCell)
 
-		// Extract item IDs
+		// Extract item IDs, bonus IDs, and ilvl
 		itemMatches := wowheadItemRegex.FindAllStringSubmatch(itemCell, -1)
 		for _, im := range itemMatches {
 			itemID, _ := strconv.Atoi(im[1])
@@ -174,11 +176,24 @@ func ParseWowheadGear(body []byte) (raid []GearItem, mythic []GearItem, err erro
 				name = fmt.Sprintf("Item %d", itemID)
 			}
 
+			// Extract bonus IDs and ilvl from the extra params (e.g. " bonus=10356:1540 ilvl=639")
+			extra := im[2]
+			bonusIDs := ""
+			ilvl := 0
+			if bm := wowheadBonusRegex.FindStringSubmatch(extra); len(bm) >= 2 {
+				bonusIDs = bm[1]
+			}
+			if ilm := wowheadIlvlRegex.FindStringSubmatch(extra); len(ilm) >= 2 {
+				ilvl, _ = strconv.Atoi(ilm[1])
+			}
+
 			raid = append(raid, GearItem{
-				Slot:   slot,
-				ItemID: itemID,
-				Name:   name,
-				Source: source,
+				Slot:     slot,
+				ItemID:   itemID,
+				Name:     name,
+				Source:   source,
+				BonusIDs: bonusIDs,
+				Ilvl:     ilvl,
 			})
 		}
 	}

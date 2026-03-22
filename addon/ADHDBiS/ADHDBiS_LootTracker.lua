@@ -40,6 +40,7 @@ local selectedSessionIndex = 1
 local lootGridCells = {}
 local lootSectionHeaders = {}
 local isTracking = false
+local pendingInstanceEntry = nil -- set during popup to defer session creation
 
 -- ============================================================
 -- LOOT TRACKER FRAME
@@ -671,6 +672,94 @@ local function UpdateStatus()
 end
 
 -- ============================================================
+-- SESSION POPUP: Continue or New Session
+-- ============================================================
+
+StaticPopupDialogs["ADHDBIS_SESSION_CHOICE"] = {
+    text = "ADHDBiS: You have an existing session for\n|cFFFFD100%s|r\nwith %s items.\n\nContinue recording into that session or start a new one?",
+    button1 = "Continue",
+    button2 = "New Session",
+    OnAccept = function()
+        -- Continue: reuse existing session
+        if pendingInstanceEntry then
+            currentSession = pendingInstanceEntry.session
+            selectedSessionIndex = pendingInstanceEntry.sessionIndex
+            isTracking = true
+            local sessionName = currentSession.name or "Unknown"
+            pendingInstanceEntry = nil
+            print("|cFF9482C9ADHDBiS:|r Continuing session: |cFFFFFFFF" .. sessionName .. "|r")
+            UpdateSessionLabel()
+            UpdateStatus()
+            if lootFrame and lootFrame:IsShown() then RefreshLootGrid() end
+        end
+    end,
+    OnCancel = function()
+        -- New Session
+        if pendingInstanceEntry then
+            local instLabel = pendingInstanceEntry.instanceLabel
+            pendingInstanceEntry = nil
+            CreateNewSession()
+            isTracking = true
+            print("|cFF9482C9ADHDBiS:|r New loot session for " .. (instLabel or "instance") .. ".")
+            UpdateStatus()
+            if lootFrame and lootFrame:IsShown() then RefreshLootGrid() end
+        end
+    end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = false,
+    preferredIndex = 3,
+}
+
+-- ============================================================
+-- INSTANCE ENTRY HANDLER
+-- ============================================================
+
+local lastInstanceEntryTime = 0
+
+local function HandleInstanceEntry(instanceType)
+    -- Guard against double-firing (PLAYER_ENTERING_WORLD + ZONE_CHANGED_NEW_AREA)
+    if (time() - lastInstanceEntryTime) < 3 then return end
+    lastInstanceEntryTime = time()
+
+    InitDB()
+    local instLabel = GetInstanceName() or "Unknown"
+    local typeLabel = (instanceType == "raid") and "raid" or "dungeon"
+
+    -- Check if there's a recent session for the same instance with items
+    local matchSession, matchIndex
+    if ADHDBiS_LootDB.sessions then
+        for i, session in ipairs(ADHDBiS_LootDB.sessions) do
+            if session.instanceName and session.instanceName == instLabel
+                and session.items and #session.items > 0 then
+                matchSession = session
+                matchIndex = i
+                break
+            end
+        end
+    end
+
+    if matchSession then
+        -- Found existing session for same instance - ask user
+        pendingInstanceEntry = {
+            session = matchSession,
+            sessionIndex = matchIndex,
+            instanceLabel = instLabel,
+        }
+        -- Pause tracking while popup is up
+        isTracking = false
+        StaticPopup_Show("ADHDBIS_SESSION_CHOICE", instLabel, tostring(#matchSession.items))
+    else
+        -- No existing session for this instance - always create new
+        CreateNewSession()
+        isTracking = true
+        print("|cFF9482C9ADHDBiS:|r Entered " .. typeLabel .. " - Loot Tracker active.")
+        UpdateStatus()
+        if lootFrame and lootFrame:IsShown() then RefreshLootGrid() end
+    end
+end
+
+-- ============================================================
 -- LOOT RECORDING
 -- ============================================================
 
@@ -904,11 +993,7 @@ local function OnEvent(self, event, ...)
         -- Check if we're in a raid or dungeon instance
         local _, instanceType = IsInInstance()
         if instanceType == "raid" or instanceType == "party" then
-            -- Create a fresh session for this instance
-            CreateNewSession()
-            isTracking = true
-            local label = (instanceType == "raid") and "raid" or "dungeon"
-            print("|cFF9482C9ADHDBiS:|r In " .. label .. " - Loot Tracker active.")
+            HandleInstanceEntry(instanceType)
         elseif db.sessions and #db.sessions > 0 then
             -- Outside instance: load most recent session for viewing
             currentSession = db.sessions[1]
@@ -930,43 +1015,6 @@ local function OnEvent(self, event, ...)
         end
         currentEncounter = nil
         UpdateStatus()
-
-    elseif event == "LOOT_OPENED" then
-        if not isTracking then return end
-
-        -- Determine boss name: if a boss was killed recently (within 30 sec), attribute to that boss
-        local bossName = "Trash"
-        if lastEncounterName and (time() - lastEncounterTime) < 30 then
-            bossName = lastEncounterName
-        end
-
-        local numItems = GetNumLootItems()
-        for i = 1, numItems do
-            local lootIcon, lootName, lootQuantity, currencyID, lootQuality = GetLootSlotInfo(i)
-            if lootQuality and lootQuality >= 3 then -- Rare or better
-                local link = GetLootSlotLink(i)
-                if link then
-                    local itemID = tonumber(link:match("item:(%d+)"))
-                    if itemID then
-                        -- Check if we already recorded this item recently (prevents duplicates)
-                        local isDuplicate = false
-                        if currentSession then
-                            for j = #currentSession.items, math.max(1, #currentSession.items - 15), -1 do
-                                local existing = currentSession.items[j]
-                                if existing and existing.itemID == itemID
-                                    and (time() - existing.timestamp) < 15 then
-                                    isDuplicate = true
-                                    break
-                                end
-                            end
-                        end
-                        if not isDuplicate then
-                            RecordLootItem(itemID, link, bossName, UnitName("player"))
-                        end
-                    end
-                end
-            end
-        end
 
     elseif event == "CHAT_MSG_LOOT" then
         if not isTracking then return end
@@ -1002,18 +1050,14 @@ local function OnEvent(self, event, ...)
             bossName = lastEncounterName
         end
 
-        -- Deduplicate: check if same itemID was recorded recently (regardless of player name source)
-        -- This prevents LOOT_OPENED + CHAT_MSG_LOOT from creating duplicates
+        -- Deduplicate: same item + same player within 5 seconds (handles WoW sending duplicate chat msgs)
         if currentSession then
-            for j = #currentSession.items, math.max(1, #currentSession.items - 15), -1 do
+            for j = #currentSession.items, math.max(1, #currentSession.items - 10), -1 do
                 local existing = currentSession.items[j]
                 if existing and existing.itemID == itemID
-                    and (time() - existing.timestamp) < 15 then
-                    -- Same item recorded within 15 seconds - update player name if we have a better one
-                    if existing.player == UnitName("player") and playerName ~= UnitName("player") then
-                        existing.player = playerName
-                    end
-                    return -- Already recorded
+                    and existing.player == playerName
+                    and (time() - existing.timestamp) < 5 then
+                    return -- Exact duplicate, skip
                 end
             end
         end
@@ -1023,15 +1067,8 @@ local function OnEvent(self, event, ...)
     elseif event == "ZONE_CHANGED_NEW_AREA" then
         local _, instanceType = IsInInstance()
         if instanceType == "raid" or instanceType == "party" then
-            if not isTracking then
-                -- Create new session for this instance
-                CreateNewSession()
-                isTracking = true
-                local label = (instanceType == "raid") and "raid" or "dungeon"
-                print("|cFF9482C9ADHDBiS:|r Entered " .. label .. " - Loot Tracker active.")
-                UpdateStatus()
-                if lootFrame:IsShown() then RefreshLootGrid() end
-            end
+            -- Always handle instance entry (new session or prompt)
+            HandleInstanceEntry(instanceType)
         else
             if isTracking then
                 isTracking = false
@@ -1046,7 +1083,6 @@ lootEventFrame:SetScript("OnEvent", OnEvent)
 lootEventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 lootEventFrame:RegisterEvent("ENCOUNTER_START")
 lootEventFrame:RegisterEvent("ENCOUNTER_END")
-lootEventFrame:RegisterEvent("LOOT_OPENED")
 lootEventFrame:RegisterEvent("CHAT_MSG_LOOT")
 lootEventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 

@@ -44,6 +44,8 @@ func NormalizeSlot(raw string) string {
 }
 
 var itemIDRegex = regexp.MustCompile(`item=(\d+)`)
+var bonusRegex = regexp.MustCompile(`bonus=([0-9:]+)`)
+var ilvlRegex = regexp.MustCompile(`ilvl=(\d+)`)
 
 func extractItemID(attr string) int {
 	matches := itemIDRegex.FindStringSubmatch(attr)
@@ -51,6 +53,27 @@ func extractItemID(attr string) int {
 		id, err := strconv.Atoi(matches[1])
 		if err == nil {
 			return id
+		}
+	}
+	return 0
+}
+
+// extractBonusIDs extracts bonus IDs from a data-wowhead attribute (e.g. "item=228411&bonus=10356:1540&ilvl=639")
+func extractBonusIDs(attr string) string {
+	matches := bonusRegex.FindStringSubmatch(attr)
+	if len(matches) >= 2 {
+		return matches[1]
+	}
+	return ""
+}
+
+// extractIlvl extracts item level from a data-wowhead attribute
+func extractIlvl(attr string) int {
+	matches := ilvlRegex.FindStringSubmatch(attr)
+	if len(matches) >= 2 {
+		v, err := strconv.Atoi(matches[1])
+		if err == nil {
+			return v
 		}
 	}
 	return 0
@@ -110,6 +133,9 @@ func ParseGear(body []byte) (raid []GearItem, mythic []GearItem, err error) {
 					return
 				}
 
+				bonusIDs := extractBonusIDs(wh)
+				ilvl := extractIlvl(wh)
+
 				source := ""
 				if tds.Length() >= 3 {
 					source = strings.TrimSpace(tds.Eq(2).Text())
@@ -127,6 +153,7 @@ func ParseGear(body []byte) (raid []GearItem, mythic []GearItem, err error) {
 
 				items = append(items, GearItem{
 					Slot: actualSlot, ItemID: itemID, Name: name, Source: source,
+					BonusIDs: bonusIDs, Ilvl: ilvl,
 				})
 			})
 		})
@@ -186,13 +213,15 @@ func ParseGear(body []byte) (raid []GearItem, mythic []GearItem, err error) {
 					return
 				}
 				itemID := extractItemID(wh)
+				bonusIDs := extractBonusIDs(wh)
+				ilvl := extractIlvl(wh)
 				name := strings.TrimSpace(span.Text())
 				source := ""
 				if tds.Length() >= 3 {
 					source = strings.TrimSpace(tds.Eq(2).Text())
 				}
 				if itemID > 0 && name != "" {
-					raid = append(raid, GearItem{Slot: slot, ItemID: itemID, Name: name, Source: source})
+					raid = append(raid, GearItem{Slot: slot, ItemID: itemID, Name: name, Source: source, BonusIDs: bonusIDs, Ilvl: ilvl})
 				}
 			})
 		})

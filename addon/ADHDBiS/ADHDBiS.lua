@@ -617,11 +617,21 @@ local function GetGridCell(index)
     highlight:SetAllPoints(borderTex)
     highlight:SetColorTexture(1, 1, 1, 0.2)
 
-    -- Tooltip (with formatted source line)
+    -- Tooltip (with formatted source line, uses bonus IDs for correct ilvl)
     cell:SetScript("OnEnter", function(self)
         if self.itemID then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetHyperlink("item:" .. self.itemID)
+            -- Build item string with bonus IDs for correct ilvl display
+            local itemStr = "item:" .. self.itemID
+            if self.bonusIDs and self.bonusIDs ~= "" then
+                -- Format: item:ID:enchant:gem1:gem2:gem3:gem4:suffix:unique:level:spec:upgrade:diff:numBonuses:b1:b2:...
+                local bonusParts = {}
+                for b in self.bonusIDs:gmatch("[^:]+") do
+                    bonusParts[#bonusParts + 1] = b
+                end
+                itemStr = itemStr .. ":::::::::::::" .. #bonusParts .. ":" .. table.concat(bonusParts, ":")
+            end
+            GameTooltip:SetHyperlink(itemStr)
             if self.fullSource and self.fullSource ~= "" then
                 GameTooltip:AddLine(" ")
                 local formatted = FormatSourceTooltip(self.fullSource, self.gearSource or selectedGearSource)
@@ -640,9 +650,13 @@ local function GetGridCell(index)
         if not self.itemID then return end
 
         if button == "LeftButton" and IsShiftKeyDown() then
-            -- Shift+Left Click: link item to chat
+            -- Shift+Left Click: link item to chat / insert into Auctionator etc.
             local _, link = C_Item.GetItemInfo(self.itemID)
-            if link then ChatEdit_InsertLink(link) end
+            if link then
+                if not HandleModifiedItemClick(link) then
+                    ChatEdit_InsertLink(link)
+                end
+            end
 
         elseif button == "RightButton" and IsShiftKeyDown() then
             -- Shift+Right Click: copy Wowhead URL
@@ -897,13 +911,18 @@ local function RenderGear()
             cell.icon:SetDesaturated(false)
         end
 
-        -- Slot label
-        cell.label:SetText(SHORT_SLOT[item.slot] or item.slot)
+        -- Slot label (with ilvl if available)
+        local slotText = SHORT_SLOT[item.slot] or item.slot
+        if item.ilvl and item.ilvl > 0 then
+            slotText = slotText .. " |cFFFFD100" .. item.ilvl .. "|r"
+        end
+        cell.label:SetText(slotText)
         -- Source label
         cell.sourceLabel:SetText(ShortSource(item.source))
         cell.fullSource = item.source or ""
         cell.gearSource = selectedGearSource
         cell.itemID = item.itemID
+        cell.bonusIDs = item.bonusIDs or ""
     end
 
     local totalHeight = LayoutGridCells(cellIndex, 0)

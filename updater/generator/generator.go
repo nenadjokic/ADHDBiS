@@ -45,16 +45,16 @@ func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, add
 				if len(data.RaidGear) > 0 {
 					sb.WriteString("                        raid = {\n")
 					for _, item := range data.RaidGear {
-						sb.WriteString(fmt.Sprintf("                            { slot = \"%s\", itemID = %d, name = \"%s\", source = \"%s\" },\n",
-							luaEscape(item.Slot), item.ItemID, luaEscape(item.Name), luaEscape(item.Source)))
+						sb.WriteString(fmt.Sprintf("                            { slot = \"%s\", itemID = %d, name = \"%s\", source = \"%s\", bonusIDs = \"%s\", ilvl = %d },\n",
+							luaEscape(item.Slot), item.ItemID, luaEscape(item.Name), luaEscape(item.Source), luaEscape(item.BonusIDs), item.Ilvl))
 					}
 					sb.WriteString("                        },\n")
 				}
 				if len(data.MythicGear) > 0 {
 					sb.WriteString("                        mythicplus = {\n")
 					for _, item := range data.MythicGear {
-						sb.WriteString(fmt.Sprintf("                            { slot = \"%s\", itemID = %d, name = \"%s\", source = \"%s\" },\n",
-							luaEscape(item.Slot), item.ItemID, luaEscape(item.Name), luaEscape(item.Source)))
+						sb.WriteString(fmt.Sprintf("                            { slot = \"%s\", itemID = %d, name = \"%s\", source = \"%s\", bonusIDs = \"%s\", ilvl = %d },\n",
+							luaEscape(item.Slot), item.ItemID, luaEscape(item.Name), luaEscape(item.Source), luaEscape(item.BonusIDs), item.Ilvl))
 					}
 					sb.WriteString("                        },\n")
 				}
