@@ -39,19 +39,12 @@ local RED_DOT   = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14|t"
 
 local TAB_LIST  = { "Gear", "Enchants+Gems", "Consumables", "Talents", "Vault" }
 
--- Great Vault ilvl rewards by key level / boss count / delve tier (Midnight Season 1)
--- Update these values each season
-local VAULT_MYTHICPLUS_ILVL = {
-    [2]=606, [3]=606, [4]=610, [5]=610, [6]=613, [7]=616, [8]=616, [9]=619, [10]=623, [11]=623, [12]=626,
-}
-local VAULT_RAID_ILVL = {
-    [17]=610, -- LFR
-    [14]=623, -- Normal
-    [15]=636, -- Heroic
-    [16]=649, -- Mythic
-}
-local VAULT_DELVE_ILVL = {
-    [1]=584, [2]=584, [3]=590, [4]=597, [5]=603, [6]=606, [7]=610, [8]=616,
+-- Raid difficulty ID to human-readable name
+local DIFFICULTY_NAMES = {
+    [17] = "LFR",
+    [14] = "Normal",
+    [15] = "Heroic",
+    [16] = "Mythic",
 }
 
 -- Grid constants
@@ -1228,8 +1221,32 @@ local function RenderVault()
         spacer.itemID = nil
     end
 
+    -- Helper: get ilvl from vault reward item links (reads actual reward from API)
+    local function GetRewardIlvl(activityID)
+        if not activityID then return nil end
+        local link = C_WeeklyRewards.GetExampleRewardItemHyperlinks(activityID)
+        if link then
+            local ilvl = GetDetailedItemLevelInfo(link)
+            if ilvl and ilvl > 0 then return ilvl end
+        end
+        return nil
+    end
+
+    -- Helper: get human-readable level label
+    local function GetLevelLabel(thresholdType, level)
+        if not level or level == 0 then return "" end
+        if thresholdType == Enum.WeeklyRewardChestThresholdType.Raid then
+            return DIFFICULTY_NAMES[level] or ("Difficulty " .. level)
+        elseif thresholdType == Enum.WeeklyRewardChestThresholdType.Activities then
+            return "+" .. level
+        elseif thresholdType == Enum.WeeklyRewardChestThresholdType.World then
+            return "Tier " .. level
+        end
+        return tostring(level)
+    end
+
     -- Helper: render one activity type
-    local function RenderActivity(title, thresholdType, ilvlTable, levelLabel)
+    local function RenderActivity(title, thresholdType)
         rowIndex = rowIndex + 1
         local hdr = GetRow(rowIndex)
         hdr.text:SetText("|cFFFFD100-- " .. title .. " --|r")
@@ -1268,19 +1285,21 @@ local function RenderVault()
                 end
             end
 
-            -- Predicted ilvl
-            local ilvl = ilvlTable[level] or 0
+            -- Get actual ilvl from API reward data
+            local ilvl = GetRewardIlvl(activity.id)
             local ilvlStr = ""
-            if unlocked and ilvl > 0 then
-                ilvlStr = " |cFF00FF00ilvl " .. ilvl .. "|r"
-            elseif ilvl > 0 then
-                ilvlStr = " |cFF888888ilvl " .. ilvl .. "|r"
+            if ilvl then
+                if unlocked then
+                    ilvlStr = " |cFF00FF00ilvl " .. ilvl .. "|r"
+                else
+                    ilvlStr = " |cFF888888ilvl " .. ilvl .. "|r"
+                end
             end
 
-            -- Level info
+            -- Level info (human-readable)
             local levelStr = ""
             if level > 0 then
-                levelStr = " |cFF888888(" .. levelLabel .. " " .. level .. ")|r"
+                levelStr = " |cFF888888(" .. GetLevelLabel(thresholdType, level) .. ")|r"
             end
 
             -- Status
@@ -1302,9 +1321,9 @@ local function RenderVault()
     end
 
     -- Render all 3 activity types
-    RenderActivity("Raids", Enum.WeeklyRewardChestThresholdType.Raid, VAULT_RAID_ILVL, "Difficulty")
-    RenderActivity("Mythic+", Enum.WeeklyRewardChestThresholdType.Activities, VAULT_MYTHICPLUS_ILVL, "Key")
-    RenderActivity("Delves", Enum.WeeklyRewardChestThresholdType.World, VAULT_DELVE_ILVL, "Tier")
+    RenderActivity("Raids", Enum.WeeklyRewardChestThresholdType.Raid)
+    RenderActivity("Mythic+", Enum.WeeklyRewardChestThresholdType.Activities)
+    RenderActivity("Delves", Enum.WeeklyRewardChestThresholdType.World)
 
     -- Tip at the bottom
     rowIndex = rowIndex + 1
