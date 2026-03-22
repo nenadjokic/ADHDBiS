@@ -129,14 +129,87 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
-    <!-- === v1.4.1 (next release placeholder) === -->
+    <!-- === v1.4.6 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.4.6</span>
+            <span class="release-date">March 22, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">Addon</p>
+        <ul>
+            <li><strong>Loot Tracker rewrite</strong> &mdash; single source of truth via <code>CHAT_MSG_LOOT</code>; fixes duplicate entries and wrong player attribution</li>
+            <li><strong>Session management</strong> &mdash; always creates new session on instance entry; prompts Continue/New if same instance has existing session</li>
+            <li><strong>BiS ilvl fix</strong> &mdash; tooltips now use bonus IDs for correct item level display (was showing base ilvl 44)</li>
+            <li><strong>Vault overhaul</strong> &mdash; ilvl read from WoW API instead of hardcoded tables; raid shows Normal/Heroic/Mythic/LFR instead of difficulty IDs</li>
+            <li><strong>Auctionator support</strong> &mdash; Shift+Click on BiS items now works with Auctionator Shopping tab</li>
+            <li><strong>Version command</strong> &mdash; <code>/adhd version</code> shows current addon version</li>
+            <li>Item level shown next to slot name in BiS gear grid</li>
+        </ul>
+
+        <p class="release-section">Companion App</p>
+        <ul>
+            <li>Scraper extracts bonus IDs and ilvl from Icy Veins / Wowhead data attributes</li>
+            <li>Generator outputs <code>bonusIDs</code> and <code>ilvl</code> fields in Lua data file</li>
+        </ul>
+    </div>
+
+    <!-- === v1.4.4 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.4.4</span>
+            <span class="release-date">March 22, 2026</span>
+        </div>
+        <ul>
+            <li><strong>Free-floating minimap button</strong> &mdash; drag anywhere on screen, not locked to minimap circle</li>
+            <li><code>/adhd minimap hide</code>, <code>show</code>, <code>reset</code> commands</li>
+            <li>Saved position persists across sessions</li>
+        </ul>
+    </div>
+
+    <!-- === v1.4.3 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.4.3</span>
+            <span class="release-date">March 22, 2026</span>
+        </div>
+        <ul>
+            <li>Change WoW path from within companion app</li>
+            <li>CLI usage info on website</li>
+            <li>OS icons on download buttons</li>
+        </ul>
+    </div>
+
+    <!-- === v1.4.2 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.4.2</span>
+            <span class="release-date">March 22, 2026</span>
+        </div>
+        <ul>
+            <li>Welcome popup with commands and support info</li>
+        </ul>
+    </div>
+
+    <!-- === v1.4.1 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.4.1</span>
+            <span class="release-date">March 22, 2026</span>
+        </div>
+        <ul>
+            <li><strong>Great Vault Advisor</strong> &mdash; weekly vault progress with ilvl predictions</li>
+            <li>Auto-detect WoW installation path</li>
+            <li>Wishlist and upgrade detection</li>
+        </ul>
+    </div>
 
     <!-- === v1.4.0 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.4.0</span>
             <span class="release-date">March 22, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">Addon</p>

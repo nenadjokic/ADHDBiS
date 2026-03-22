@@ -1936,6 +1936,9 @@ SlashCmdList["ADHDBIS"] = function(msg)
         minimapBtn:Show()
         RestoreMinimapPosition()
         print("|cFF9482C9ADHDBiS:|r Minimap button reset to default position.")
+    elseif cmd == "version" then
+        local tocVersion = C_AddOns.GetAddOnMetadata("ADHDBiS", "Version") or "?"
+        print("|cFF9482C9ADHDBiS:|r v" .. tocVersion)
     elseif cmd == "loot" or cmd:find("^loot") then
         -- Delegate to loot tracker
         local subCmd = cmd:match("^loot%s+(.+)") or ""
@@ -1952,6 +1955,7 @@ SlashCmdList["ADHDBIS"] = function(msg)
         print("  |cFFFFFFFF/adhd minimap hide|r - Hide minimap button")
         print("  |cFFFFFFFF/adhd minimap show|r - Show minimap button")
         print("  |cFFFFFFFF/adhd minimap reset|r - Reset button to default position")
+        print("  |cFFFFFFFF/adhd version|r - Show addon version")
     end
 end
 

@@ -22,6 +22,8 @@ All-in-one BiS gear tracker, loot tracker, and raid companion addon for WoW: Mid
 | `/adhd loot` | Toggle Loot Tracker |
 | `/adhd loot new` | New loot session |
 | `/adhd loot help` | All loot commands |
+| `/adhd minimap hide/show/reset` | Control minimap button |
+| `/adhd version` | Show addon version |
 
 ## License
 
