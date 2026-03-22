@@ -414,10 +414,20 @@
   <!-- Addon Path -->
   <div class="card">
     <div class="card-title">Addon Path</div>
-    <div class="addon-path">
+    <div class="addon-path" id="pathDisplay">
       <svg class="addon-path-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       <span id="addonPath">Loading...</span>
     </div>
+    <div id="pathEditor" style="display:none; margin-top:8px;">
+      <input id="pathInput" type="text" placeholder="Enter WoW AddOns folder path..."
+             style="width:100%; padding:8px 12px; background:#08080e; border:1px solid #2a2a3e; border-radius:6px; color:#e0e0e8; font-size:0.9rem; font-family:monospace;">
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button id="pathSaveBtn" style="padding:6px 16px; background:#8b5cf6; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:0.85rem;">Save</button>
+        <button id="pathCancelBtn" style="padding:6px 16px; background:#2a2a3e; color:#8888a0; border:none; border-radius:6px; cursor:pointer; font-size:0.85rem;">Cancel</button>
+      </div>
+    </div>
+    <button id="changePathBtn" style="margin-top:8px; padding:6px 16px; background:none; color:#8b5cf6; border:1px solid #2a2a3e; border-radius:6px; cursor:pointer; font-size:0.8rem; transition:all 0.2s;"
+            onmouseover="this.style.borderColor='#8b5cf6'" onmouseout="this.style.borderColor='#2a2a3e'">Change Path</button>
   </div>
 
   <!-- Start Button -->
@@ -490,12 +500,56 @@
       renderClasses();
     });
 
+  var changePathBtn = document.getElementById('changePathBtn');
+  var pathEditor = document.getElementById('pathEditor');
+  var pathInput = document.getElementById('pathInput');
+  var pathSaveBtn = document.getElementById('pathSaveBtn');
+  var pathCancelBtn = document.getElementById('pathCancelBtn');
+  var pathDisplay = document.getElementById('pathDisplay');
+
   // Fetch config
   fetch('/api/config')
     .then(function(r) { return r.json(); })
     .then(function(data) {
       addonPath.textContent = data.addonsPath || 'Not configured';
+      pathInput.value = data.addonsPath || '';
     });
+
+  changePathBtn.addEventListener('click', function() {
+    pathEditor.style.display = 'block';
+    changePathBtn.style.display = 'none';
+    pathInput.focus();
+  });
+
+  pathCancelBtn.addEventListener('click', function() {
+    pathEditor.style.display = 'none';
+    changePathBtn.style.display = '';
+  });
+
+  pathSaveBtn.addEventListener('click', function() {
+    var newPath = pathInput.value.trim();
+    if (!newPath) return;
+    pathSaveBtn.textContent = 'Saving...';
+    pathSaveBtn.disabled = true;
+    fetch('/api/config', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({addonsPath: newPath})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      addonPath.textContent = data.addonsPath;
+      pathEditor.style.display = 'none';
+      changePathBtn.style.display = '';
+      pathSaveBtn.textContent = 'Save';
+      pathSaveBtn.disabled = false;
+    })
+    .catch(function(err) {
+      alert('Error: ' + err.message);
+      pathSaveBtn.textContent = 'Save';
+      pathSaveBtn.disabled = false;
+    });
+  });
 
   function renderClasses() {
     classGrid.innerHTML = '';
@@ -643,5 +697,30 @@
   });
 })();
 </script>
+
+<!-- Support Section -->
+<div style="max-width:900px; margin:32px auto 0; padding:0 20px 48px; text-align:center;">
+  <div style="border-top:1px solid #2a2a3e; padding-top:24px;">
+    <p style="color:#8888a0; font-size:0.95rem; margin-bottom:12px;">Enjoy ADHDBiS? Support continued development!</p>
+    <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+      <a href="https://buymeacoffee.com/nenadjokic" target="_blank"
+         style="display:inline-flex; align-items:center; gap:6px; padding:10px 24px; background:#FFDD00; color:#000; font-weight:700; border-radius:8px; text-decoration:none; font-size:0.95rem; transition:transform 0.2s;"
+         onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+        Buy Me a Coffee
+      </a>
+      <a href="https://paypal.me/nenadjokicRS" target="_blank"
+         style="display:inline-flex; align-items:center; gap:6px; padding:10px 24px; background:#0070BA; color:#fff; font-weight:700; border-radius:8px; text-decoration:none; font-size:0.95rem; transition:transform 0.2s;"
+         onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+        PayPal
+      </a>
+      <a href="https://github.com/nenadjokic/ADHDBiS" target="_blank"
+         style="display:inline-flex; align-items:center; gap:6px; padding:10px 24px; background:#1a1a2e; color:#8b5cf6; font-weight:600; border:1px solid #2a2a3e; border-radius:8px; text-decoration:none; font-size:0.95rem; transition:transform 0.2s;"
+         onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
+        GitHub
+      </a>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>

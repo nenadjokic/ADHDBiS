@@ -1,10 +1,8 @@
 # Binaries
-*.exe
-adhdbis-updater-*
+updater/binary/
 *.app/
 
 # Build artifacts
-*.zip
 www/downloads/
 
 # OS files

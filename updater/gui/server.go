@@ -77,8 +77,33 @@ func StartServer(cfg *config.Config) {
 	// API: Get config
 	mux.HandleFunc("/api/config", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if r.Method == "POST" {
+			// Update path
+			var body struct {
+				AddOnsPath string `json:"addonsPath"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "Invalid JSON", 400)
+				return
+			}
+			body.AddOnsPath = strings.TrimSpace(body.AddOnsPath)
+			if body.AddOnsPath == "" {
+				http.Error(w, "Path cannot be empty", 400)
+				return
+			}
+			cfg.AddOnsPath = body.AddOnsPath
+			config.Save(cfg)
+			json.NewEncoder(w).Encode(map[string]string{
+				"addonsPath": cfg.AddOnsPath,
+				"status":     "saved",
+			})
+			return
+		}
+		// GET
+		detected := config.DetectAddOnsPath()
 		json.NewEncoder(w).Encode(map[string]string{
 			"addonsPath": cfg.AddOnsPath,
+			"detected":   detected,
 		})
 	})
 

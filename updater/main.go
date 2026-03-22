@@ -30,6 +30,21 @@ func main() {
 		}
 	}
 
+	// Check for --reset-path flag
+	resetPath := false
+	for _, arg := range os.Args[1:] {
+		if arg == "--reset-path" || arg == "--config" {
+			resetPath = true
+			break
+		}
+	}
+
+	// If reset requested, clear saved config first
+	if resetPath {
+		config.Save(&config.Config{AddOnsPath: ""})
+		fmt.Println("AddOns path cleared. You will be prompted for a new path.")
+	}
+
 	if !cliMode {
 		// Default: GUI mode
 		reader := bufio.NewReader(os.Stdin)
@@ -175,5 +190,9 @@ func main() {
 	fmt.Printf("  Specs:   %d\n", totalSpecs)
 	fmt.Printf("  Total data points: %d\n", result.TotalItems)
 	fmt.Println("  Reload your UI in-game with /reload")
+	fmt.Println()
+	fmt.Println("  ★ Enjoy ADHDBiS? Support development:")
+	fmt.Println("    buymeacoffee.com/nenadjokic")
+	fmt.Println("    paypal.me/nenadjokicRS")
 	fmt.Println()
 }
