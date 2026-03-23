@@ -125,7 +125,7 @@ local function BuildItemString(itemID, bonusIDs)
         end
         if #bonusList > 0 then
             -- item:ID:enchant:gem1:gem2:gem3:gem4:suffixID:uniqueID:linkLevel:specID:modifiersMask:itemContext:numBonusIDs:b1:b2:...
-            itemStr = itemStr .. ":::::::::::::" .. #bonusList .. ":" .. table.concat(bonusList, ":")
+            itemStr = itemStr .. "::::::::::::" .. #bonusList .. ":" .. table.concat(bonusList, ":")
         end
     end
     return itemStr
