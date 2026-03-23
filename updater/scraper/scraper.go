@@ -41,6 +41,7 @@ var AllClasses = []ClassInfo{
 		{Name: "Unholy", Slug: "unholy", Role: "dps"},
 	}},
 	{Name: "Demon Hunter", Slug: "demon-hunter", Specs: []ClassSpec{
+		{Name: "Devourer", Slug: "devourer", Role: "dps"},
 		{Name: "Havoc", Slug: "havoc", Role: "dps"},
 		{Name: "Vengeance", Slug: "vengeance", Role: "tank"},
 	}},

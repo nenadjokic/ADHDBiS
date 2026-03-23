@@ -114,26 +114,138 @@ lootCloseBtn:SetScript("OnClick", function() lootFrame:Hide() end)
 lootCloseBtn:SetScript("OnEnter", function() lootCloseTxt:SetText("|cFFFF8888X|r") end)
 lootCloseBtn:SetScript("OnLeave", function() lootCloseTxt:SetText("|cFFFF4444X|r") end)
 
--- Epic+ filter button
+-- Filter dropdown button
 local filterBtn = CreateFrame("Button", nil, lootTitleBar)
-filterBtn:SetSize(45, 18)
+filterBtn:SetSize(50, 18)
 filterBtn:SetPoint("RIGHT", lootCloseBtn, "LEFT", -4, 0)
 local filterBg = filterBtn:CreateTexture(nil, "BACKGROUND")
 filterBg:SetAllPoints()
 filterBg:SetColorTexture(0.2, 0.2, 0.3, 0.7)
 local filterTxt = filterBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 filterTxt:SetPoint("CENTER")
-filterTxt:SetText("All")
-filterBtn:SetScript("OnClick", function()
-    filterEpicOnly = not filterEpicOnly
-    if filterEpicOnly then
-        filterTxt:SetText("|cFFA335EEEpic+|r")
-        filterBg:SetColorTexture(0.4, 0.15, 0.6, 0.7)
-    else
-        filterTxt:SetText("All")
-        filterBg:SetColorTexture(0.2, 0.2, 0.3, 0.7)
+filterTxt:SetText("|cFFAAAAAAFilter|r")
+
+-- Filter dropdown panel
+local filterDropdown = CreateFrame("Frame", "ADHDBiSLootFilterDropdown", lootFrame, "BackdropTemplate")
+filterDropdown:SetSize(140, 142)
+filterDropdown:SetPoint("TOPRIGHT", filterBtn, "BOTTOMRIGHT", 0, -2)
+filterDropdown:SetFrameStrata("DIALOG")
+filterDropdown:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true, tileSize = 16, edgeSize = 12,
+    insets = { left = 3, right = 3, top = 3, bottom = 3 },
+})
+filterDropdown:SetBackdropColor(0.08, 0.08, 0.12, 0.95)
+filterDropdown:SetBackdropBorderColor(0.5, 0.3, 0.6, 0.8)
+filterDropdown:Hide()
+filterDropdown:EnableMouse(true)
+
+-- Filter options definition: {key, label, color}
+local FILTER_OPTIONS = {
+    { key = "gear",       label = "Gear",        color = "|cFF00BBFF" },
+    { key = "mount",      label = "Mounts",      color = "|cFFFF8800" },
+    { key = "recipe",     label = "Recipes",      color = "|cFF00DD00" },
+    { key = "consumable", label = "Consumables",  color = "|cFFBBBBBB" },
+    { key = "other",      label = "Other",        color = "|cFF888888" },
+    { key = "epicOnly",   label = "Epic+ Only",   color = "|cFFA335EE" },
+}
+
+local filterCheckboxes = {}
+
+local function UpdateFilterButtonText()
+    -- Count active category filters (excluding epicOnly)
+    local activeCount = 0
+    local totalCats = 5
+    for _, opt in ipairs(FILTER_OPTIONS) do
+        if opt.key ~= "epicOnly" and lootFilters[opt.key] then
+            activeCount = activeCount + 1
+        end
     end
-    RefreshLootGrid()
+    if activeCount == totalCats and not lootFilters.epicOnly then
+        filterTxt:SetText("|cFFAAAAAAFilter|r")
+        filterBg:SetColorTexture(0.2, 0.2, 0.3, 0.7)
+    else
+        filterTxt:SetText("|cFF9482C9Filter|r")
+        filterBg:SetColorTexture(0.3, 0.15, 0.4, 0.7)
+    end
+end
+
+for i, opt in ipairs(FILTER_OPTIONS) do
+    local row = CreateFrame("Button", nil, filterDropdown)
+    row:SetSize(134, 20)
+    row:SetPoint("TOPLEFT", filterDropdown, "TOPLEFT", 3, -3 - (i - 1) * 22)
+
+    local rowBg = row:CreateTexture(nil, "BACKGROUND")
+    rowBg:SetAllPoints()
+    rowBg:SetColorTexture(0, 0, 0, 0)
+    row.bg = rowBg
+
+    local check = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    check:SetPoint("LEFT", row, "LEFT", 4, 0)
+    check:SetWidth(16)
+    row.check = check
+
+    local label = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    label:SetPoint("LEFT", check, "RIGHT", 2, 0)
+    label:SetText(opt.color .. opt.label .. "|r")
+
+    -- Add separator line before Epic+ Only
+    if opt.key == "epicOnly" then
+        local sep = filterDropdown:CreateTexture(nil, "ARTWORK")
+        sep:SetHeight(1)
+        sep:SetPoint("TOPLEFT", filterDropdown, "TOPLEFT", 6, -3 - (i - 1) * 22 + 3)
+        sep:SetPoint("TOPRIGHT", filterDropdown, "TOPRIGHT", -6, -3 - (i - 1) * 22 + 3)
+        sep:SetColorTexture(0.4, 0.3, 0.5, 0.5)
+    end
+
+    local function UpdateCheck()
+        if lootFilters[opt.key] then
+            check:SetText("|cFF00FF00+|r")
+        else
+            check:SetText("|cFF666666-|r")
+        end
+    end
+    UpdateCheck()
+
+    row:SetScript("OnClick", function()
+        lootFilters[opt.key] = not lootFilters[opt.key]
+        UpdateCheck()
+        UpdateFilterButtonText()
+        SaveFilters()
+        RefreshLootGrid()
+    end)
+
+    row:SetScript("OnEnter", function() rowBg:SetColorTexture(0.3, 0.2, 0.4, 0.4) end)
+    row:SetScript("OnLeave", function() rowBg:SetColorTexture(0, 0, 0, 0) end)
+
+    filterCheckboxes[opt.key] = { row = row, updateCheck = UpdateCheck }
+end
+
+filterBtn:SetScript("OnClick", function()
+    if filterDropdown:IsShown() then
+        filterDropdown:Hide()
+    else
+        -- Update checkmarks to current state
+        for _, opt in ipairs(FILTER_OPTIONS) do
+            if filterCheckboxes[opt.key] then
+                filterCheckboxes[opt.key].updateCheck()
+            end
+        end
+        filterDropdown:Show()
+    end
+end)
+
+-- Close dropdown when clicking elsewhere
+filterDropdown:SetScript("OnShow", function(self)
+    self:SetScript("OnUpdate", function(self2)
+        if not MouseIsOver(self2) and not MouseIsOver(filterBtn) and IsMouseButtonDown("LeftButton") then
+            self2:Hide()
+        end
+    end)
+end)
+filterDropdown:SetScript("OnHide", function(self)
+    self:SetScript("OnUpdate", nil)
 end)
 
 -- Clear button
@@ -353,8 +465,17 @@ local function ToggleWishlist(itemID)
     end
 end
 
--- Quality filter state
-local filterEpicOnly = false
+-- Filter state (initialized from DB in InitDB, defaults here)
+local FILTER_DEFAULTS = {
+    gear = true,
+    mount = true,
+    recipe = true,
+    consumable = false,
+    other = false,
+    epicOnly = false,
+}
+local lootFilters = {}
+for k, v in pairs(FILTER_DEFAULTS) do lootFilters[k] = v end
 
 local function GetLootGridCell(index)
     if lootGridCells[index] then
@@ -517,6 +638,33 @@ end
 -- ITEM HELPERS
 -- ============================================================
 
+-- Item category classification using WoW classID/subclassID
+-- classID: 0=Consumable, 2=Weapon, 3=Gem, 4=Armor, 5=Reagent,
+--          7=Tradeskill, 8=ItemEnhancement, 9=Recipe, 15=Miscellaneous
+local function GetItemCategory(itemID)
+    if not itemID then return "other" end
+    local _, _, _, _, _, classID, subclassID = GetItemInfoInstant(itemID)
+    if not classID then return "other" end
+    -- Gear: weapons and equippable armor
+    if classID == 2 then return "gear" end -- Weapon
+    if classID == 4 then -- Armor
+        local _, _, _, equipLoc = GetItemInfoInstant(itemID)
+        if equipLoc and equipLoc ~= "" and equipLoc ~= "INVTYPE_NON_EQUIP" then
+            return "gear"
+        end
+        return "other"
+    end
+    -- Mount: Miscellaneous, subclass 5
+    if classID == 15 and subclassID == 5 then return "mount" end
+    -- Recipe
+    if classID == 9 then return "recipe" end
+    -- Consumable / reagent / tradeskill / enhancement
+    if classID == 0 or classID == 5 or classID == 7 or classID == 8 then return "consumable" end
+    -- Gem
+    if classID == 3 then return "gear" end
+    return "other"
+end
+
 local function GetItemIcon(itemID)
     if not itemID then return "Interface\\Icons\\INV_Misc_QuestionMark" end
     local _, _, _, _, icon = GetItemInfoInstant(itemID)
@@ -603,6 +751,23 @@ end
 local function InitDB()
     if not ADHDBiS_LootDB.sessions then
         ADHDBiS_LootDB.sessions = {}
+    end
+    -- Load saved filters or apply defaults
+    if ADHDBiS_LootDB.lootFilters then
+        for k, v in pairs(FILTER_DEFAULTS) do
+            if ADHDBiS_LootDB.lootFilters[k] ~= nil then
+                lootFilters[k] = ADHDBiS_LootDB.lootFilters[k]
+            else
+                lootFilters[k] = v
+            end
+        end
+    end
+end
+
+local function SaveFilters()
+    ADHDBiS_LootDB.lootFilters = {}
+    for k, v in pairs(lootFilters) do
+        ADHDBiS_LootDB.lootFilters[k] = v
     end
 end
 
@@ -785,6 +950,8 @@ local function RecordLootItem(itemID, itemLink, bossName, playerName)
     local equipSlot = GetItemEquipSlot(itemID)
     local track, trackStep = GetGearTrack(ilvl)
 
+    local category = GetItemCategory(itemID)
+
     local entry = {
         itemID = itemID,
         itemLink = itemLink,
@@ -795,6 +962,7 @@ local function RecordLootItem(itemID, itemLink, bossName, playerName)
         track = track,
         trackStep = trackStep,
         equipSlot = equipSlot,
+        category = category,
         timestamp = time(),
     }
 
@@ -885,11 +1053,13 @@ function RefreshLootGrid()
 
             -- Grid cells for this boss
             local sectionStart = cellIndex
+            local visibleCount = 0
             for _, item in ipairs(bossItems) do
-                -- Apply quality filter
-                if filterEpicOnly and item.quality and item.quality < 4 then
-                    -- Skip non-epic items when filter is on
-                else
+                -- Apply filters: category + quality
+                local cat = item.category or GetItemCategory(item.itemID)
+                local passCategory = lootFilters[cat] ~= false
+                local passQuality = not lootFilters.epicOnly or (item.quality and item.quality >= 4)
+                if passCategory and passQuality then
                 cellIndex = cellIndex + 1
                 local cell = GetLootGridCell(cellIndex)
 
@@ -949,12 +1119,22 @@ function RefreshLootGrid()
                 cell:SetPoint("TOPLEFT", lootScrollChild, "TOPLEFT",
                     col * (GRID_CELL_WIDTH + GRID_PADDING),
                     -(row * (GRID_CELL_HEIGHT + GRID_PADDING)) - yOffset)
-                end -- end filter else
+                visibleCount = visibleCount + 1
+                end -- end filter
             end
 
             local secCount = cellIndex - sectionStart
-            local secRows = math.ceil(secCount / cols)
-            yOffset = yOffset + secRows * (GRID_CELL_HEIGHT + GRID_PADDING) + 6
+            if secCount == 0 then
+                -- No visible items for this boss, hide the header
+                hdr:Hide()
+                headerIndex = headerIndex - 1
+                yOffset = yOffset - 22
+            else
+                -- Update header with visible/total count
+                hdr.text:SetText("|cFFFFD100" .. bossName .. "|r  |cFF888888(" .. secCount .. " items)|r")
+                local secRows = math.ceil(secCount / cols)
+                yOffset = yOffset + secRows * (GRID_CELL_HEIGHT + GRID_PADDING) + 6
+            end
         end
     end
 
@@ -989,6 +1169,7 @@ local function OnEvent(self, event, ...)
         end
 
         UpdateSessionLabel()
+        UpdateFilterButtonText()
 
         -- Check if we're in a raid or dungeon instance
         local _, instanceType = IsInInstance()

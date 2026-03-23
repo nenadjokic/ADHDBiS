@@ -57,7 +57,7 @@ local GRID_BORDER_SIZE = 2
 -- All WoW classes and their specs (for dropdown menus)
 local CLASS_SPECS = {
     ["Death Knight"]  = { "Blood", "Frost", "Unholy" },
-    ["Demon Hunter"]  = { "Havoc", "Vengeance" },
+    ["Demon Hunter"]  = { "Devourer", "Havoc", "Vengeance" },
     ["Druid"]         = { "Balance", "Feral", "Guardian", "Restoration" },
     ["Evoker"]        = { "Augmentation", "Devastation", "Preservation" },
     ["Hunter"]        = { "Beast Mastery", "Marksmanship", "Survival" },
