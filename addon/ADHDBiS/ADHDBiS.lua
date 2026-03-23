@@ -37,7 +37,7 @@ local GRAY_COLOR = "|cFF888888"
 local GREEN_DOT = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
 local RED_DOT   = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14|t"
 
-local TAB_LIST  = { "Gear", "Enchants+Gems", "Consumables", "Talents", "Vault" }
+local TAB_LIST  = { "Gear", "Trinkets", "Enchants+Gems", "Consumables", "Talents", "Vault" }
 
 -- Raid difficulty ID to human-readable name
 local DIFFICULTY_NAMES = {
@@ -91,6 +91,16 @@ local SHORT_SLOT = {
     Trinket1 = "Trk1", Trinket2 = "Trk2", Weapon = "Wep", OffHand = "OH",
 }
 
+-- Trinket ranking tier colors
+local TIER_COLORS = {
+    S = "|cFFFF8000",  -- Orange (legendary)
+    A = "|cFFA335EE",  -- Purple (epic)
+    B = "|cFF0070DD",  -- Blue (rare)
+    C = "|cFF1EFF00",  -- Green (uncommon)
+    D = "|cFF9D9D9D",  -- Gray (poor)
+}
+local TIER_ORDER = { "S", "A", "B", "C", "D" }
+
 -- ============================================================
 -- ITEM HELPERS
 -- ============================================================
@@ -99,6 +109,70 @@ local function GetItemIcon(itemID)
     if not itemID then return "Interface\\Icons\\INV_Misc_QuestionMark" end
     local _, _, _, _, icon = GetItemInfoInstant(itemID)
     return icon or "Interface\\Icons\\INV_Misc_QuestionMark"
+end
+
+-- ilvl cache: keyed by "itemID:bonusIDs" -> effective ilvl number
+local ilvlCache = {}
+local ilvlPendingItems = {} -- items we've requested but haven't got data for yet
+
+local function BuildItemString(itemID, bonusIDs)
+    if not itemID or itemID == 0 then return nil end
+    local itemStr = "item:" .. itemID
+    if bonusIDs and bonusIDs ~= "" then
+        local bonusList = {}
+        for id in bonusIDs:gmatch("(%d+)") do
+            bonusList[#bonusList + 1] = id
+        end
+        if #bonusList > 0 then
+            -- item:ID:enchant:gem1:gem2:gem3:gem4:suffixID:uniqueID:linkLevel:specID:modifiersMask:itemContext:numBonusIDs:b1:b2:...
+            itemStr = itemStr .. ":::::::::::::" .. #bonusList .. ":" .. table.concat(bonusList, ":")
+        end
+    end
+    return itemStr
+end
+
+local function GetItemIlvl(itemID, bonusIDs, fallbackIlvl)
+    if not itemID or itemID == 0 then return fallbackIlvl end
+
+    local cacheKey = itemID .. ":" .. (bonusIDs or "")
+    if ilvlCache[cacheKey] then
+        return ilvlCache[cacheKey]
+    end
+
+    local itemStr = BuildItemString(itemID, bonusIDs)
+    if not itemStr then return fallbackIlvl end
+
+    -- Try GetDetailedItemLevelInfo first (returns effective ilvl with bonuses)
+    local effectiveIlvl = GetDetailedItemLevelInfo and GetDetailedItemLevelInfo(itemStr)
+    if effectiveIlvl and effectiveIlvl > 0 then
+        ilvlCache[cacheKey] = effectiveIlvl
+        return effectiveIlvl
+    end
+
+    -- Fallback: try C_Item.GetItemInfo (20th return is ilvl in some API versions)
+    local info = {C_Item.GetItemInfo(itemStr)}
+    if info[1] then
+        -- GetItemInfo returns: name, link, quality, ilvl, ...
+        local ilvl = info[4]
+        if ilvl and ilvl > 0 then
+            -- Re-check with GetDetailedItemLevelInfo using the link (more accurate with bonuses)
+            local detailedIlvl = GetDetailedItemLevelInfo and info[2] and GetDetailedItemLevelInfo(info[2])
+            if detailedIlvl and detailedIlvl > 0 then
+                ilvlCache[cacheKey] = detailedIlvl
+                return detailedIlvl
+            end
+            ilvlCache[cacheKey] = ilvl
+            return ilvl
+        end
+    end
+
+    -- Item not cached yet - request it for async load
+    if not ilvlPendingItems[itemID] then
+        ilvlPendingItems[itemID] = cacheKey
+        C_Item.RequestLoadItemDataByID(itemID)
+    end
+
+    return fallbackIlvl
 end
 
 -- Parse source string into structured parts: { type, instance, boss }
@@ -904,10 +978,11 @@ local function RenderGear()
             cell.icon:SetDesaturated(false)
         end
 
-        -- Slot label (with ilvl if available)
+        -- Slot label (with ilvl from WoW API, scraped value as fallback)
         local slotText = SHORT_SLOT[item.slot] or item.slot
-        if item.ilvl and item.ilvl > 0 then
-            slotText = slotText .. " |cFFFFD100" .. item.ilvl .. "|r"
+        local displayIlvl = GetItemIlvl(item.itemID, item.bonusIDs, (item.ilvl and item.ilvl > 0) and item.ilvl or nil)
+        if displayIlvl then
+            slotText = slotText .. " |cFFFFD100" .. displayIlvl .. "|r"
         end
         cell.label:SetText(slotText)
         -- Source label
@@ -920,6 +995,101 @@ local function RenderGear()
 
     local totalHeight = LayoutGridCells(cellIndex, 0)
     scrollChild:SetHeight(math.max(1, totalHeight))
+end
+
+-- TRINKETS TAB (Grid with tier sections)
+local function RenderTrinketRankings()
+    local specData = GetSpecData()
+    if not specData or not specData.trinketRankings or #specData.trinketRankings == 0 then
+        local row = GetRow(1)
+        row.text:SetText("|cFFFFD100No trinket rankings available for this spec.|r")
+        row.itemID = nil
+        scrollChild:SetHeight(ROW_HEIGHT)
+        return
+    end
+
+    -- Group trinkets by tier
+    local byTier = {}
+    for _, tr in ipairs(specData.trinketRankings) do
+        if not byTier[tr.tier] then
+            byTier[tr.tier] = {}
+        end
+        table.insert(byTier[tr.tier], tr)
+    end
+
+    -- Get equipped trinket IDs for highlighting
+    local equippedTrinket1 = GetInventoryItemID("player", 13)
+    local equippedTrinket2 = GetInventoryItemID("player", 14)
+
+    local cellIndex = 0
+    local sectionIdx = 0
+    local yOffset = 0
+    local frameWidth = scrollChild:GetWidth()
+    local cols = math.floor(frameWidth / (GRID_CELL_WIDTH + GRID_PADDING))
+    if cols < 1 then cols = 1 end
+
+    for _, tier in ipairs(TIER_ORDER) do
+        local trinkets = byTier[tier]
+        if trinkets and #trinkets > 0 then
+            -- Section header
+            sectionIdx = sectionIdx + 1
+            local hdr = GetSectionHeader(sectionIdx)
+            local color = TIER_COLORS[tier] or "|cFFFFFFFF"
+            hdr.text:SetText(color .. "-- " .. tier .. " Tier --|r")
+            hdr:ClearAllPoints()
+            hdr:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -yOffset)
+            hdr:SetPoint("RIGHT", scrollChild, "RIGHT", 0, 0)
+            yOffset = yOffset + 22
+
+            -- Grid cells for this tier (manually positioned)
+            local tierCellCount = 0
+            for _, tr in ipairs(trinkets) do
+                cellIndex = cellIndex + 1
+                tierCellCount = tierCellCount + 1
+                local cell = GetGridCell(cellIndex)
+
+                -- Icon
+                cell.icon:SetTexture(GetItemIcon(tr.itemID))
+
+                -- Equipped check (trinket slot 13 or 14)
+                local isEquipped = (equippedTrinket1 and equippedTrinket1 == tr.itemID) or
+                                   (equippedTrinket2 and equippedTrinket2 == tr.itemID)
+                if isEquipped then
+                    cell.borderTex:SetColorTexture(0, 0.8, 0, 1) -- green
+                    cell.icon:SetAlpha(0.35)
+                    cell.icon:SetDesaturated(true)
+                else
+                    cell.borderTex:SetColorTexture(0.8, 0, 0, 1) -- red
+                    cell.icon:SetAlpha(1)
+                    cell.icon:SetDesaturated(false)
+                end
+
+                -- Tier label below icon
+                local tierColor = TIER_COLORS[tier] or "|cFFFFFFFF"
+                cell.label:SetText(tierColor .. tier .. " Tier|r")
+                cell.sourceLabel:SetText("")
+                cell.fullSource = ""
+                cell.gearSource = nil
+                cell.itemID = tr.itemID
+                cell.bonusIDs = ""
+
+                -- Manual grid positioning within this tier section
+                local localIdx = tierCellCount - 1
+                local row = math.floor(localIdx / cols)
+                local col = localIdx % cols
+                cell:ClearAllPoints()
+                cell:SetPoint("TOPLEFT", scrollChild, "TOPLEFT",
+                    col * (GRID_CELL_WIDTH + GRID_PADDING),
+                    -(row * (GRID_CELL_HEIGHT + GRID_PADDING)) - yOffset)
+            end
+
+            -- Advance yOffset past this tier's grid
+            local tierRows = math.ceil(tierCellCount / cols)
+            yOffset = yOffset + tierRows * (GRID_CELL_HEIGHT + GRID_PADDING)
+        end
+    end
+
+    scrollChild:SetHeight(math.max(1, yOffset))
 end
 
 -- Enchant/gem detection helpers
@@ -1431,7 +1601,7 @@ function ns.RefreshContent()
     scrollChild:SetWidth(mainFrame:GetWidth() - 42)
 
     -- Check if data exists at all
-    if selectedTab ~= 5 and (not ADHDBiS_Data or (not ADHDBiS_Data.classes and not ADHDBiS_Data.specs)) then
+    if selectedTab ~= 6 and (not ADHDBiS_Data or (not ADHDBiS_Data.classes and not ADHDBiS_Data.specs)) then
         -- No data - show setup message
         gearToggleFrame:Hide()
         scrollFrame:SetPoint("TOPLEFT", tabBar, "BOTTOMLEFT", 0, -4)
@@ -1464,7 +1634,7 @@ function ns.RefreshContent()
     -- Update source button
     sourceBtn.label:SetText(selectedSource)
     -- Hide source selector on Vault tab (not relevant)
-    if selectedTab == 5 then
+    if selectedTab == 6 then
         sourceBtn:Hide()
     else
         sourceBtn:Show()
@@ -1501,12 +1671,14 @@ function ns.RefreshContent()
     if selectedTab == 1 then
         RenderGear()
     elseif selectedTab == 2 then
-        RenderEnchantsGems()
+        RenderTrinketRankings()
     elseif selectedTab == 3 then
-        RenderConsumables()
+        RenderEnchantsGems()
     elseif selectedTab == 4 then
-        RenderTalents()
+        RenderConsumables()
     elseif selectedTab == 5 then
+        RenderTalents()
+    elseif selectedTab == 6 then
         RenderVault()
     end
 
@@ -1566,6 +1738,7 @@ end
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+eventFrame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 
 eventFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
@@ -1700,6 +1873,19 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
     elseif event == "ACTIVE_TALENT_GROUP_CHANGED" then
         DetectSpec()
         if mainFrame:IsShown() then ns.RefreshContent() end
+
+    elseif event == "GET_ITEM_INFO_RECEIVED" then
+        local itemID = ...
+        if itemID and ilvlPendingItems[itemID] then
+            -- Clear pending flag and invalidate cache so it re-fetches with real data
+            local cacheKey = ilvlPendingItems[itemID]
+            ilvlPendingItems[itemID] = nil
+            ilvlCache[cacheKey] = nil
+            -- Refresh display if gear tab is showing
+            if mainFrame:IsShown() and selectedTab == 1 then
+                ns.RefreshContent()
+            end
+        end
     end
 end)
 

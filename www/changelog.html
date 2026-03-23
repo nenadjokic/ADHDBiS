@@ -129,12 +129,32 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
+    <!-- === v1.4.7 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.4.7</span>
+            <span class="release-date">March 23, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">Addon</p>
+        <ul>
+            <li><strong>Trinket Rankings tab</strong> &mdash; new tab showing S/A/B/C/D tier-ranked trinkets scraped from Icy Veins; color-coded tiers, equipped trinket highlighting</li>
+            <li><strong>Item level fix</strong> &mdash; ilvl now resolved via WoW API (<code>GetDetailedItemLevelInfo</code>) with bonus IDs for accurate display; async loading with cache</li>
+        </ul>
+
+        <p class="release-section">Companion App</p>
+        <ul>
+            <li>Scraper parses trinket tier rankings from Icy Veins BiS gear pages (no extra HTTP requests)</li>
+            <li>Generator outputs <code>trinketRankings</code> Lua table with tier, itemID, and name</li>
+        </ul>
+    </div>
+
     <!-- === v1.4.6 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.4.6</span>
             <span class="release-date">March 22, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">Addon</p>

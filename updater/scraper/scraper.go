@@ -174,7 +174,8 @@ type SpecData struct {
 	Enchants     []EnchantItem
 	Gems         []GemItem
 	Consumables  []Consumable
-	TalentBuilds []TalentBuild
+	TalentBuilds    []TalentBuild
+	TrinketRankings []TrinketRanking
 }
 
 type GearItem struct {
@@ -208,4 +209,10 @@ type TalentBuild struct {
 	Name    string
 	Code    string
 	Context string
+}
+
+type TrinketRanking struct {
+	Tier   string
+	ItemID int
+	Name   string
 }

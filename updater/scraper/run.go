@@ -77,6 +77,18 @@ func RunScrape(req ScrapeRequest, logWriter io.Writer) *ScrapeResult {
 						result.TotalItems += len(raid) + len(mythic)
 					}
 				}
+
+				// Trinket Rankings (Icy Veins only - from same gear page)
+				if !useWowhead && gearBody != nil {
+					trinkets, te := ParseTrinketRankings(gearBody)
+					if te != nil {
+						logf("  Trinket ranking parse warning: %v\n", te)
+					} else {
+						specData.TrinketRankings = trinkets
+						result.TotalItems += len(trinkets)
+					}
+				}
+
 				Delay()
 
 				// Enchants

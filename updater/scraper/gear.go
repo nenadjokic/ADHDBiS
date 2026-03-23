@@ -231,3 +231,139 @@ func ParseGear(body []byte) (raid []GearItem, mythic []GearItem, err error) {
 	logf("    Found %d raid items, %d M+ items\n", len(raid), len(mythic))
 	return raid, mythic, nil
 }
+
+// tierRegex matches tier labels like "S Tier", "A Tier", etc.
+var tierRegex = regexp.MustCompile(`(?i)^([SABCD])\s*Tier`)
+
+// ParseTrinketRankings extracts trinket tier rankings from an Icy Veins BiS gear page.
+// Returns an empty slice (not error) if no rankings are found.
+func ParseTrinketRankings(body []byte) ([]TrinketRanking, error) {
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("parsing HTML: %w", err)
+	}
+
+	var rankings []TrinketRanking
+	tierOrder := []string{"S", "A", "B", "C", "D"}
+
+	// Strategy 1: Find elements containing tier text patterns followed by item links.
+	// Icy Veins uses various structures - look for text nodes with "X Tier" followed by
+	// sibling/child spans with data-wowhead item attributes.
+	doc.Find("h2, h3, h4, h5, strong, b, p, td, th, li, div, span").Each(func(i int, s *goquery.Selection) {
+		text := strings.TrimSpace(s.Text())
+		// Only match short text that looks like a tier label (avoid matching huge parent containers)
+		if len(text) > 30 {
+			return
+		}
+		matches := tierRegex.FindStringSubmatch(text)
+		if len(matches) < 2 {
+			return
+		}
+		tier := strings.ToUpper(matches[1])
+
+		// Look for item links in the same parent or next sibling elements
+		parent := s.Parent()
+		if parent == nil {
+			return
+		}
+
+		// Check siblings and parent for data-wowhead items near this tier label
+		var found bool
+		parent.Find("span[data-wowhead], a[data-wowhead]").Each(func(j int, item *goquery.Selection) {
+			wh, _ := item.Attr("data-wowhead")
+			if !strings.Contains(wh, "item=") {
+				return
+			}
+			itemID := extractItemID(wh)
+			name := strings.TrimSpace(item.Text())
+			if itemID > 0 && name != "" {
+				rankings = append(rankings, TrinketRanking{Tier: tier, ItemID: itemID, Name: name})
+				found = true
+			}
+		})
+
+		// If not found in parent, check next siblings
+		if !found {
+			nextEl := s.Parent().Next()
+			for k := 0; k < 5 && nextEl.Length() > 0; k++ {
+				nextText := strings.TrimSpace(nextEl.Text())
+				// Stop if we hit another tier label
+				if tierRegex.MatchString(nextText) && len(nextText) <= 30 {
+					break
+				}
+				nextEl.Find("span[data-wowhead], a[data-wowhead]").Each(func(j int, item *goquery.Selection) {
+					wh, _ := item.Attr("data-wowhead")
+					if !strings.Contains(wh, "item=") {
+						return
+					}
+					itemID := extractItemID(wh)
+					name := strings.TrimSpace(item.Text())
+					if itemID > 0 && name != "" {
+						rankings = append(rankings, TrinketRanking{Tier: tier, ItemID: itemID, Name: name})
+					}
+				})
+				nextEl = nextEl.Next()
+			}
+		}
+	})
+
+	// Strategy 2: Look for table rows with tier labels in first column
+	if len(rankings) == 0 {
+		doc.Find("table tr").Each(func(i int, tr *goquery.Selection) {
+			tds := tr.Find("td, th")
+			if tds.Length() < 2 {
+				return
+			}
+			firstCell := strings.TrimSpace(tds.Eq(0).Text())
+			matches := tierRegex.FindStringSubmatch(firstCell)
+			if len(matches) < 2 {
+				return
+			}
+			tier := strings.ToUpper(matches[1])
+
+			// Items are in remaining cells
+			tds.Each(func(j int, td *goquery.Selection) {
+				if j == 0 {
+					return
+				}
+				td.Find("span[data-wowhead], a[data-wowhead]").Each(func(k int, item *goquery.Selection) {
+					wh, _ := item.Attr("data-wowhead")
+					if !strings.Contains(wh, "item=") {
+						return
+					}
+					itemID := extractItemID(wh)
+					name := strings.TrimSpace(item.Text())
+					if itemID > 0 && name != "" {
+						rankings = append(rankings, TrinketRanking{Tier: tier, ItemID: itemID, Name: name})
+					}
+				})
+			})
+		})
+	}
+
+	// Deduplicate by itemID (keep first occurrence)
+	seen := map[int]bool{}
+	var deduped []TrinketRanking
+	for _, r := range rankings {
+		if !seen[r.ItemID] {
+			seen[r.ItemID] = true
+			deduped = append(deduped, r)
+		}
+	}
+	rankings = deduped
+
+	// Sort by tier order: S -> A -> B -> C -> D
+	tierIdx := map[string]int{}
+	for i, t := range tierOrder {
+		tierIdx[t] = i
+	}
+	// Stable sort preserving order within same tier
+	for i := 1; i < len(rankings); i++ {
+		for j := i; j > 0 && tierIdx[rankings[j].Tier] < tierIdx[rankings[j-1].Tier]; j-- {
+			rankings[j], rankings[j-1] = rankings[j-1], rankings[j]
+		}
+	}
+
+	logf("    Found %d trinket rankings\n", len(rankings))
+	return rankings, nil
+}

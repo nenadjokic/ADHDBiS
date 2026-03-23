@@ -100,6 +100,16 @@ func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, add
 					sb.WriteString("                    },\n")
 				}
 
+				// Trinket Rankings
+				if len(data.TrinketRankings) > 0 {
+					sb.WriteString("                    trinketRankings = {\n")
+					for _, tr := range data.TrinketRankings {
+						sb.WriteString(fmt.Sprintf("                        { tier = \"%s\", itemID = %d, name = \"%s\" },\n",
+							luaEscape(tr.Tier), tr.ItemID, luaEscape(tr.Name)))
+					}
+					sb.WriteString("                    },\n")
+				}
+
 				sb.WriteString("                },\n")
 			}
 
