@@ -129,12 +129,32 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
+    <!-- === v1.4.9 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.4.9</span>
+            <span class="release-date">March 23, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">Addon</p>
+        <ul>
+            <li><strong>Correct item level display</strong> &mdash; ilvl now resolved via <code>C_TooltipInfo</code> API which properly applies bonus IDs; shows Myth 6/6 ilvl (289) instead of base ilvl (44)</li>
+            <li><strong>Native tooltip with ilvl override</strong> &mdash; tooltips use WoW native rendering (with gear comparison) and correct the ilvl text line</li>
+            <li><strong>Removed ilvl from slot labels</strong> &mdash; cleaner grid layout without redundant ilvl numbers next to slot names</li>
+        </ul>
+
+        <p class="release-section">Companion App</p>
+        <ul>
+            <li><strong>Wowhead tooltip API integration</strong> &mdash; updater now fetches correct ilvl and tooltip data from Wowhead API for each item; provides accurate ilvl as fallback when WoW client cache is empty</li>
+        </ul>
+    </div>
+
     <!-- === v1.4.8 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.4.8</span>
             <span class="release-date">March 23, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">Addon</p>
@@ -316,5 +336,7 @@
     <p>ADHDBiS &copy; 2026 &bull; <a href="index.html">Home</a> &bull; <a href="https://github.com/nenadjokic/ADHDBiS">GitHub</a></p>
 </footer>
 
+<script data-goatcounter="https://nenadjokic.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>

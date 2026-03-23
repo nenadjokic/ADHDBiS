@@ -124,12 +124,16 @@ local function BuildItemString(itemID, bonusIDs)
             bonusList[#bonusList + 1] = id
         end
         if #bonusList > 0 then
-            -- item:ID:enchant:gem1:gem2:gem3:gem4:suffixID:uniqueID:linkLevel:specID:modifiersMask:itemContext:numBonusIDs:b1:b2:...
-            itemStr = itemStr .. "::::::::::::" .. #bonusList .. ":" .. table.concat(bonusList, ":")
+            -- item:ID:enchant:gem1:gem2:gem3:gem4:suffix:unique:level:spec:modifiers:context:craftQuality:numBonusIDs:b1:b2:...
+            -- 13 empty fields between itemID and numBonusIDs (TWW format)
+            itemStr = itemStr .. ":::::::::::::" .. #bonusList .. ":" .. table.concat(bonusList, ":")
         end
     end
     return itemStr
 end
+
+-- Minimum sane ilvl for current expansion gear (base ilvl without bonuses can be very low like 44)
+local MIN_SANE_ILVL = 200
 
 local function GetItemIlvl(itemID, bonusIDs, fallbackIlvl)
     if not itemID or itemID == 0 then return fallbackIlvl end
@@ -142,28 +146,32 @@ local function GetItemIlvl(itemID, bonusIDs, fallbackIlvl)
     local itemStr = BuildItemString(itemID, bonusIDs)
     if not itemStr then return fallbackIlvl end
 
-    -- Try GetDetailedItemLevelInfo first (returns effective ilvl with bonuses)
-    local effectiveIlvl = GetDetailedItemLevelInfo and GetDetailedItemLevelInfo(itemStr)
-    if effectiveIlvl and effectiveIlvl > 0 then
-        ilvlCache[cacheKey] = effectiveIlvl
-        return effectiveIlvl
+    -- Primary method: C_TooltipInfo.GetHyperlink correctly resolves bonus IDs
+    -- GetDetailedItemLevelInfo / GetItemInfo return BASE ilvl for constructed item strings
+    if C_TooltipInfo and C_TooltipInfo.GetHyperlink then
+        local tooltipData = C_TooltipInfo.GetHyperlink(itemStr)
+        if tooltipData and tooltipData.lines then
+            for _, line in ipairs(tooltipData.lines) do
+                if line.type == Enum.TooltipDataLineType.ItemLevel then
+                    local ilvl = line.itemLevel
+                    if not ilvl and line.leftText then
+                        local num = line.leftText:match("(%d+)")
+                        if num then ilvl = tonumber(num) end
+                    end
+                    if ilvl and ilvl >= MIN_SANE_ILVL then
+                        ilvlCache[cacheKey] = ilvl
+                        return ilvl
+                    end
+                end
+            end
+        end
     end
 
-    -- Fallback: try C_Item.GetItemInfo (20th return is ilvl in some API versions)
-    local info = {C_Item.GetItemInfo(itemStr)}
-    if info[1] then
-        -- GetItemInfo returns: name, link, quality, ilvl, ...
-        local ilvl = info[4]
-        if ilvl and ilvl > 0 then
-            -- Re-check with GetDetailedItemLevelInfo using the link (more accurate with bonuses)
-            local detailedIlvl = GetDetailedItemLevelInfo and info[2] and GetDetailedItemLevelInfo(info[2])
-            if detailedIlvl and detailedIlvl > 0 then
-                ilvlCache[cacheKey] = detailedIlvl
-                return detailedIlvl
-            end
-            ilvlCache[cacheKey] = ilvl
-            return ilvl
-        end
+    -- Legacy fallback: GetDetailedItemLevelInfo (may work for cached items)
+    local effectiveIlvl = GetDetailedItemLevelInfo and GetDetailedItemLevelInfo(itemStr)
+    if effectiveIlvl and effectiveIlvl >= MIN_SANE_ILVL then
+        ilvlCache[cacheKey] = effectiveIlvl
+        return effectiveIlvl
     end
 
     -- Item not cached yet - request it for async load
@@ -172,6 +180,10 @@ local function GetItemIlvl(itemID, bonusIDs, fallbackIlvl)
         C_Item.RequestLoadItemDataByID(itemID)
     end
 
+    -- Use scraped ilvl as fallback (only if sane)
+    if fallbackIlvl and fallbackIlvl >= MIN_SANE_ILVL then
+        return fallbackIlvl
+    end
     return fallbackIlvl
 end
 
@@ -684,21 +696,26 @@ local function GetGridCell(index)
     highlight:SetAllPoints(borderTex)
     highlight:SetColorTexture(1, 1, 1, 0.2)
 
-    -- Tooltip (with formatted source line, uses bonus IDs for correct ilvl)
+    -- Tooltip: native WoW tooltip with gear comparison + ilvl override
     cell:SetScript("OnEnter", function(self)
         if self.itemID then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            -- Build item string with bonus IDs for correct ilvl display
-            local itemStr = "item:" .. self.itemID
-            if self.bonusIDs and self.bonusIDs ~= "" then
-                -- Format: item:ID:enchant:gem1:gem2:gem3:gem4:suffix:unique:level:spec:upgrade:diff:numBonuses:b1:b2:...
-                local bonusParts = {}
-                for b in self.bonusIDs:gmatch("[^:]+") do
-                    bonusParts[#bonusParts + 1] = b
-                end
-                itemStr = itemStr .. ":::::::::::::" .. #bonusParts .. ":" .. table.concat(bonusParts, ":")
-            end
+            local itemStr = BuildItemString(self.itemID, self.bonusIDs) or ("item:" .. self.itemID)
             GameTooltip:SetHyperlink(itemStr)
+            -- Override ilvl text with correct value (WoW client shows base ilvl for constructed items)
+            local correctIlvl = GetItemIlvl(self.itemID, self.bonusIDs, self.displayIlvl)
+            if correctIlvl and correctIlvl >= MIN_SANE_ILVL then
+                for i = 2, GameTooltip:NumLines() do
+                    local line = _G["GameTooltipTextLeft" .. i]
+                    if line then
+                        local text = line:GetText()
+                        if text and text:match(ITEM_LEVEL:gsub("%%d", "%%d+")) then
+                            line:SetText(ITEM_LEVEL:format(correctIlvl))
+                            break
+                        end
+                    end
+                end
+            end
             if self.fullSource and self.fullSource ~= "" then
                 GameTooltip:AddLine(" ")
                 local formatted = FormatSourceTooltip(self.fullSource, self.gearSource or selectedGearSource)
@@ -978,12 +995,10 @@ local function RenderGear()
             cell.icon:SetDesaturated(false)
         end
 
-        -- Slot label (with ilvl from WoW API, scraped value as fallback)
+        -- Slot label
         local slotText = SHORT_SLOT[item.slot] or item.slot
+        -- Cache the resolved ilvl for tooltip correction (don't display in slot label)
         local displayIlvl = GetItemIlvl(item.itemID, item.bonusIDs, (item.ilvl and item.ilvl > 0) and item.ilvl or nil)
-        if displayIlvl then
-            slotText = slotText .. " |cFFFFD100" .. displayIlvl .. "|r"
-        end
         cell.label:SetText(slotText)
         -- Source label
         cell.sourceLabel:SetText(ShortSource(item.source))
@@ -991,6 +1006,8 @@ local function RenderGear()
         cell.gearSource = selectedGearSource
         cell.itemID = item.itemID
         cell.bonusIDs = item.bonusIDs or ""
+        cell.displayIlvl = displayIlvl
+        cell.tooltipLines = item.tooltip
     end
 
     local totalHeight = LayoutGridCells(cellIndex, 0)

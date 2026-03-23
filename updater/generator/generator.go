@@ -18,6 +18,23 @@ func luaEscape(s string) string {
 	return s
 }
 
+// writeGearItem writes a single gear item entry to the string builder.
+func writeGearItem(sb *strings.Builder, item scraper.GearItem, indent string) {
+	sb.WriteString(fmt.Sprintf("%s{ slot = \"%s\", itemID = %d, name = \"%s\", source = \"%s\", bonusIDs = \"%s\", ilvl = %d",
+		indent, luaEscape(item.Slot), item.ItemID, luaEscape(item.Name), luaEscape(item.Source), luaEscape(item.BonusIDs), item.Ilvl))
+	if len(item.TooltipLines) > 0 {
+		sb.WriteString(", tooltip = { ")
+		for j, line := range item.TooltipLines {
+			if j > 0 {
+				sb.WriteString(", ")
+			}
+			sb.WriteString(fmt.Sprintf("\"%s\"", luaEscape(line)))
+		}
+		sb.WriteString(" }")
+	}
+	sb.WriteString(" },\n")
+}
+
 // GenerateLua creates ADHDBiS_Data.lua from scraped data and writes it to the AddOns folder.
 func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, addOnsPath string, source string) error {
 	var sb strings.Builder
@@ -45,16 +62,14 @@ func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, add
 				if len(data.RaidGear) > 0 {
 					sb.WriteString("                        raid = {\n")
 					for _, item := range data.RaidGear {
-						sb.WriteString(fmt.Sprintf("                            { slot = \"%s\", itemID = %d, name = \"%s\", source = \"%s\", bonusIDs = \"%s\", ilvl = %d },\n",
-							luaEscape(item.Slot), item.ItemID, luaEscape(item.Name), luaEscape(item.Source), luaEscape(item.BonusIDs), item.Ilvl))
+						writeGearItem(&sb, item, "                            ")
 					}
 					sb.WriteString("                        },\n")
 				}
 				if len(data.MythicGear) > 0 {
 					sb.WriteString("                        mythicplus = {\n")
 					for _, item := range data.MythicGear {
-						sb.WriteString(fmt.Sprintf("                            { slot = \"%s\", itemID = %d, name = \"%s\", source = \"%s\", bonusIDs = \"%s\", ilvl = %d },\n",
-							luaEscape(item.Slot), item.ItemID, luaEscape(item.Name), luaEscape(item.Source), luaEscape(item.BonusIDs), item.Ilvl))
+						writeGearItem(&sb, item, "                            ")
 					}
 					sb.WriteString("                        },\n")
 				}

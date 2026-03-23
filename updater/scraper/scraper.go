@@ -179,12 +179,13 @@ type SpecData struct {
 }
 
 type GearItem struct {
-	Slot     string
-	ItemID   int
-	Name     string
-	Source   string
-	BonusIDs string // colon-separated bonus IDs (e.g. "10356:1540")
-	Ilvl     int    // item level from source (0 if unknown)
+	Slot         string
+	ItemID       int
+	Name         string
+	Source       string
+	BonusIDs     string   // colon-separated bonus IDs (e.g. "10356:1540")
+	Ilvl         int      // item level from source (0 if unknown)
+	TooltipLines []string // pre-formatted tooltip lines from Wowhead
 }
 
 type EnchantItem struct {

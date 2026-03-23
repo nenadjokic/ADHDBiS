@@ -72,6 +72,15 @@ func RunScrape(req ScrapeRequest, logWriter io.Writer) *ScrapeResult {
 					if e != nil {
 						logf("  Parse warning: %v\n", e)
 					} else {
+						// Resolve missing ilvl via Wowhead tooltip API
+						if len(raid) > 0 {
+							logf("  Resolving item levels for raid gear...\n")
+							ResolveGearIlvl(raid)
+						}
+						if len(mythic) > 0 {
+							logf("  Resolving item levels for M+ gear...\n")
+							ResolveGearIlvl(mythic)
+						}
 						specData.RaidGear = raid
 						specData.MythicGear = mythic
 						result.TotalItems += len(raid) + len(mythic)
