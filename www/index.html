@@ -289,8 +289,8 @@
         <div class="features-grid">
             <div class="feature-card">
                 <span class="feature-icon">&#x1F9E9;</span>
-                <h3>BiS Gear Grid</h3>
-                <p>Visual icon grid showing Best in Slot gear for every class and spec. Green border = equipped, red = you need it. Items you already have are dimmed so you focus on upgrades.</p>
+                <h3>BiS Gear List View</h3>
+                <p>Two-column list view showing item icons, names, and drop locations at a glance. Overall, Raid, and M+ tabs. 4-state status icons: green check (equipped BiS), yellow (upgradeable), blue bag (in inventory), red X (missing). Progress tracker shows your BiS completion percentage.</p>
             </div>
             <div class="feature-card">
                 <span class="feature-icon">&#x1F4E6;</span>
@@ -299,8 +299,8 @@
             </div>
             <div class="feature-card">
                 <span class="feature-icon">&#x2B06;</span>
-                <h3>Upgrade &amp; BiS Detection</h3>
-                <p>Green arrow on upgrades, green ilvl when it beats your equipped gear. Best in Slot and wishlisted items get a golden glow so you never miss an important drop.</p>
+                <h3>Tooltip BiS &amp; Bag Scanner</h3>
+                <p>Hover any item anywhere in the game (bags, AH, loot, trade) and instantly see if it's BiS for any spec. Smart bag scanner detects BiS items sitting in your inventory that you forgot to equip.</p>
             </div>
             <div class="feature-card">
                 <span class="feature-icon">&#x2B50;</span>
@@ -340,7 +340,7 @@
         <div class="screenshots">
             <div class="screenshot">
                 <img src="images/bis-panel.png" alt="BiS Panel - Icon grid showing Best in Slot gear">
-                <div class="screenshot-caption">BiS Gear Grid &mdash; Icon-based gear view with equipped status</div>
+                <div class="screenshot-caption">BiS List View &mdash; Two-column layout with item names, drop sources &amp; 4-state status</div>
             </div>
             <div class="screenshot">
                 <img src="images/loot-tracker.png" alt="Loot Tracker - Real-time dungeon loot tracking">
@@ -377,16 +377,23 @@
                 <tr><td><span class="cmd">/adhd loot stop</span></td><td>Pause loot tracking</td></tr>
                 <tr><td><span class="cmd">/adhd loot summary</span></td><td>Print full session summary to chat</td></tr>
                 <tr><td><span class="cmd">/adhd loot wishlist</span></td><td>Show all wishlisted items</td></tr>
+                <tr><td><span class="cmd">/adhd loot sound</span></td><td>Change BiS/wishlist drop alert sound (10 options)</td></tr>
                 <tr><td><span class="cmd">/adhd loot help</span></td><td>Show all loot tracker commands</td></tr>
+                <tr><td><span class="cmd">/adhd radar</span></td><td>Toggle LootRadar (M+ upgrade scanner)</td></tr>
+                <tr><td><span class="cmd">/adhd version</span></td><td>Show current addon version</td></tr>
+                <tr><td><span class="cmd">/adhd minimap hide</span></td><td>Hide minimap button</td></tr>
+                <tr><td><span class="cmd">/adhd minimap show</span></td><td>Show minimap button</td></tr>
+                <tr><td><span class="cmd">/adhd minimap reset</span></td><td>Reset minimap button to default position</td></tr>
             </tbody>
         </table>
 
         <div style="margin-top: 2rem; padding: 1.5rem; background: #111128; border-radius: 12px; border: 1px solid #1e1e3a;">
-            <h3 style="color: #fff; margin-bottom: 0.5rem;">Grid Controls</h3>
+            <h3 style="color: #fff; margin-bottom: 0.5rem;">Item Controls</h3>
             <p style="color: #999; font-size: 0.95rem;">
-                <strong style="color: #ccc;">Shift+Click</strong> &mdash; Preview item (Dressing Room) &nbsp;&bull;&nbsp;
-                <strong style="color: #ccc;">Ctrl+Click</strong> &mdash; Link item to chat &nbsp;&bull;&nbsp;
-                <strong style="color: #ccc;">Right-Click</strong> &mdash; Toggle wishlist bookmark
+                <strong style="color: #ccc;">Click</strong> &mdash; Open Adventure Guide &nbsp;&bull;&nbsp;
+                <strong style="color: #ccc;">Shift+Click</strong> &mdash; Link item to chat &nbsp;&bull;&nbsp;
+                <strong style="color: #ccc;">Right-Click</strong> &mdash; Toggle wishlist &nbsp;&bull;&nbsp;
+                <strong style="color: #ccc;">Shift+Right-Click</strong> &mdash; Copy Wowhead URL
             </p>
         </div>
     </div>
@@ -467,7 +474,7 @@
         </div>
 
         <p style="text-align: center; margin-top: 2rem; color: #666; font-size: 0.85rem;">
-            Version 1.4.13 &bull; Compatible with WoW: Midnight (12.x) &bull; All classes and specs supported
+            Version 1.5.0 &bull; Compatible with WoW: Midnight (12.x) &bull; All classes and specs supported
         </p>
         <p style="text-align: center; margin-top: 0.5rem;">
             <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank" class="btn btn-secondary" style="padding: 8px 20px; font-size: 0.85rem;">

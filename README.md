@@ -16,11 +16,15 @@ All-in-one BiS gear tracker, loot tracker, and raid companion addon for WoW: Mid
 
 ## Features
 
-- BiS gear, enchants, gems, consumables and talent builds for all 13 classes / 40 specs
+- BiS gear list view with item names, drop sources, and 4-state status icons (equipped/upgradeable/in-bag/missing)
+- Overall, Raid, and M+ BiS tabs with BiS progress tracker
+- Tooltip BiS integration - hover any item in-game to see if it's BiS
+- Enchants, gems, consumables grids and talent builds for all 13 classes / 40 specs
+- Trinket Rankings with S/A/B/C/D tier system
 - Loot Tracker with category filters (Gear, Mounts, Recipes, Consumables)
-- Wishlist system - right-click items in BiS panel or Loot Tracker to bookmark them
-- Golden glow on BiS and wishlisted items in the Loot Tracker
-- Upgrade detection - shows which loot drops are upgrades for you
+- LootRadar M+ upgrade scanner
+- Wishlist system with golden glow on BiS/wishlisted drops
+- Great Vault weekly progress tracker
 - Data from both Icy Veins and Wowhead with in-game source switching
 
 ## Commands
@@ -33,6 +37,7 @@ All-in-one BiS gear tracker, loot tracker, and raid companion addon for WoW: Mid
 | `/adhd loot wishlist` | Show wishlisted items |
 | `/adhd loot sound` | Change BiS/wishlist alert sound |
 | `/adhd loot help` | All loot commands |
+| `/adhd radar` | Toggle LootRadar (M+ upgrade scanner) |
 | `/adhd minimap hide/show/reset` | Control minimap button |
 | `/adhd version` | Show addon version |
 

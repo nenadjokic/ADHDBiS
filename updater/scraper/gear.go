@@ -82,10 +82,10 @@ func extractIlvl(attr string) int {
 // ParseGear parses BiS gear from an Icy Veins page.
 // Icy Veins structure: image_block tabs with area_1 (Overall), area_2 (M+), area_3 (Raid).
 // Items use <span data-wowhead="item=XXXXX"> pattern.
-func ParseGear(body []byte) (raid []GearItem, mythic []GearItem, err error) {
+func ParseGear(body []byte) (raid []GearItem, mythic []GearItem, overall []GearItem, err error) {
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
 	if err != nil {
-		return nil, nil, fmt.Errorf("parsing HTML: %w", err)
+		return nil, nil, nil, fmt.Errorf("parsing HTML: %w", err)
 	}
 
 	// Identify which area_N maps to raid/mythicplus/overall
@@ -169,24 +169,24 @@ func ParseGear(body []byte) (raid []GearItem, mythic []GearItem, err error) {
 		case "mythicplus":
 			mythic = items
 		case "overall":
-			if len(raid) == 0 {
-				raid = items
-			}
-			if len(mythic) == 0 {
-				mythic = items
-			}
+			overall = items
 		}
 	}
 
 	// Fallback: try standard area IDs
-	if len(raid) == 0 && len(mythic) == 0 {
-		raid = parseTable("area_3")
+	if len(raid) == 0 && len(mythic) == 0 && len(overall) == 0 {
+		overall = parseTable("area_1")
 		mythic = parseTable("area_2")
+		raid = parseTable("area_3")
+	}
+
+	// If only overall exists, use it as fallback for raid/mythic
+	if len(overall) > 0 {
 		if len(raid) == 0 {
-			raid = parseTable("area_1")
+			raid = overall
 		}
 		if len(mythic) == 0 {
-			mythic = parseTable("area_1")
+			mythic = overall
 		}
 	}
 
@@ -228,8 +228,8 @@ func ParseGear(body []byte) (raid []GearItem, mythic []GearItem, err error) {
 		mythic = raid
 	}
 
-	logf("    Found %d raid items, %d M+ items\n", len(raid), len(mythic))
-	return raid, mythic, nil
+	logf("    Found %d overall, %d raid, %d M+ items\n", len(overall), len(raid), len(mythic))
+	return raid, mythic, overall, nil
 }
 
 // tierRegex matches tier labels like "S Tier", "A Tier", etc.

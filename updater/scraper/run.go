@@ -62,19 +62,20 @@ func RunScrape(req ScrapeRequest, logWriter io.Writer) *ScrapeResult {
 					logf("  Warning: %v\n", err)
 				}
 				if gearBody != nil {
-					var raid, mythic []GearItem
+					var raid, mythic, overall []GearItem
 					var e error
 					if useWowhead {
 						raid, mythic, e = ParseWowheadGear(gearBody)
 					} else {
-						raid, mythic, e = ParseGear(gearBody)
+						raid, mythic, overall, e = ParseGear(gearBody)
 					}
 					if e != nil {
 						logf("  Parse warning: %v\n", e)
 					} else {
+						specData.OverallGear = overall
 						specData.RaidGear = raid
 						specData.MythicGear = mythic
-						result.TotalItems += len(raid) + len(mythic)
+						result.TotalItems += len(overall) + len(raid) + len(mythic)
 					}
 				}
 

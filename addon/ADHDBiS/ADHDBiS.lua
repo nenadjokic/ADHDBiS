@@ -8,8 +8,8 @@ ADHDBiSDB = ADHDBiSDB or {}
 
 local defaults = {
     windowPoint = { "CENTER", nil, "CENTER", 0, 0 },
-    windowWidth = 500,
-    windowHeight = 480,
+    windowWidth = 620,
+    windowHeight = 520,
 }
 
 -- ============================================================
@@ -36,6 +36,13 @@ local EPIC_COLOR = "|cFFA335EE"
 local GRAY_COLOR = "|cFF888888"
 local GREEN_DOT = "|TInterface\\RaidFrame\\ReadyCheck-Ready:14:14|t"
 local RED_DOT   = "|TInterface\\RaidFrame\\ReadyCheck-NotReady:14:14|t"
+
+-- List View constants (Gear tab)
+local LIST_ICON_SIZE = 42
+local LIST_ROW_HEIGHT = 52
+local LIST_ROW_PADDING = 2
+local LIST_BORDER_SIZE = 2
+local LIST_COL_GAP = 4
 
 local TAB_LIST  = { "Gear", "Trinkets", "Enchants+Gems", "Consumables", "Talents", "Vault" }
 
@@ -91,6 +98,29 @@ local SHORT_SLOT = {
     Trinket1 = "Trk1", Trinket2 = "Trk2", Weapon = "Wep", OffHand = "OH",
 }
 
+-- Trinket source lookup: find source from gear lists by itemID
+local function FindTrinketSource(itemID)
+    if not itemID or not ADHDBiS_Data then return nil end
+    local playerClass = UnitClass("player")
+    if not playerClass or not ADHDBiS_Data.classes or not ADHDBiS_Data.classes[playerClass] then return nil end
+    for specName, sources in pairs(ADHDBiS_Data.classes[playerClass]) do
+        for sourceName, data in pairs(sources) do
+            if data.gear then
+                for _, listType in ipairs({"mythicplus", "raid"}) do
+                    if data.gear[listType] then
+                        for _, item in ipairs(data.gear[listType]) do
+                            if item.itemID == itemID and item.source then
+                                return item.source
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
 -- Trinket ranking tier colors
 local TIER_COLORS = {
     S = "|cFFFF8000",  -- Orange (legendary)
@@ -114,6 +144,77 @@ end
 -- ilvl cache: keyed by "itemID:bonusIDs" -> effective ilvl number
 local ilvlCache = {}
 local ilvlPendingItems = {} -- items we've requested but haven't got data for yet
+
+-- Item name/quality cache: itemID -> { name, quality, color }
+local itemInfoCache = {}
+local QUALITY_COLORS = {
+    [0] = "9D9D9D", -- Poor
+    [1] = "FFFFFF", -- Common
+    [2] = "1EFF00", -- Uncommon
+    [3] = "0070DD", -- Rare
+    [4] = "A335EE", -- Epic
+    [5] = "FF8000", -- Legendary
+    [6] = "E6CC80", -- Artifact
+    [7] = "00CCFF", -- Heirloom
+}
+
+local function GetCachedItemInfo(itemID)
+    if not itemID then return nil, nil, "A335EE" end
+    if itemInfoCache[itemID] then
+        local c = itemInfoCache[itemID]
+        return c.name, c.quality, c.color
+    end
+    local name, _, quality = C_Item.GetItemInfo(itemID)
+    if name then
+        local color = QUALITY_COLORS[quality] or "A335EE"
+        itemInfoCache[itemID] = { name = name, quality = quality, color = color }
+        return name, quality, color
+    end
+    -- Not cached yet, request async load
+    C_Item.RequestLoadItemDataByID(itemID)
+    return nil, nil, "A335EE"
+end
+
+-- Bag scanner cache: itemID -> { inBag=bool, bagIlvl=number }
+local bagBiSCache = {}
+local bagCacheDirty = true
+
+-- BiS lookup table: itemID -> { class, spec, source, slot, gearSource }
+-- Built once when data loads, used by tooltip hook
+local bisLookup = {}
+
+local function BuildBiSLookup()
+    wipe(bisLookup)
+    if not ADHDBiS_Data or not ADHDBiS_Data.classes then return end
+    for className, classData in pairs(ADHDBiS_Data.classes) do
+        for specName, specSources in pairs(classData) do
+            for sourceName, sourceData in pairs(specSources) do
+                if type(sourceData) == "table" and sourceData.gear then
+                    for _, gearType in ipairs({"overall", "raid", "mythicplus"}) do
+                        local gearList = sourceData.gear[gearType]
+                        if gearList then
+                            for _, item in ipairs(gearList) do
+                                if item.itemID then
+                                    if not bisLookup[item.itemID] then
+                                        bisLookup[item.itemID] = {}
+                                    end
+                                    bisLookup[item.itemID][#bisLookup[item.itemID] + 1] = {
+                                        class = className,
+                                        spec = specName,
+                                        source = sourceName,
+                                        slot = item.slot,
+                                        gearSource = gearType,
+                                        ilvl = item.ilvl,
+                                    }
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
 
 local function BuildItemString(itemID, bonusIDs)
     if not itemID or itemID == 0 then return nil end
@@ -266,7 +367,7 @@ local selectedClass = "Warlock"
 local selectedSpec = "Demonology"
 local selectedSource = "Icy Veins"
 local selectedTab = 1
-local selectedGearSource = "raid"
+local selectedGearSource = "overall"
 local contentRows = {}
 local gridCells = {}
 
@@ -595,7 +696,8 @@ local function CreateGearToggle(label, source, anchor)
     return btn
 end
 
-local raidBtn = CreateGearToggle("Raid", "raid", nil)
+local overallBtn = CreateGearToggle("Overall", "overall", nil)
+local raidBtn = CreateGearToggle("Raid", "raid", overallBtn)
 local mplusBtn = CreateGearToggle("M+", "mythicplus", raidBtn)
 
 -- ============================================================
@@ -843,6 +945,241 @@ local function LayoutGridCells(count, yOffset)
 end
 
 -- ============================================================
+-- BAG SCANNER (event-driven, cached)
+-- ============================================================
+
+local function ScanBags()
+    wipe(bagBiSCache)
+    for bag = 0, 4 do
+        local numSlots = C_Container.GetContainerNumSlots(bag)
+        for slot = 1, numSlots do
+            local info = C_Container.GetContainerItemInfo(bag, slot)
+            if info and info.itemID then
+                local id = info.itemID
+                if not bagBiSCache[id] then
+                    bagBiSCache[id] = { inBag = true }
+                end
+                -- Get ilvl from the actual bag item
+                local itemLink = C_Container.GetContainerItemLink(bag, slot)
+                if itemLink then
+                    local ilvl = GetDetailedItemLevelInfo(itemLink)
+                    if ilvl and ilvl > 0 then
+                        local existing = bagBiSCache[id].bagIlvl
+                        if not existing or ilvl > existing then
+                            bagBiSCache[id].bagIlvl = ilvl
+                        end
+                    end
+                end
+            end
+        end
+    end
+    bagCacheDirty = false
+end
+
+-- Get the 4-state status for an item: "equipped_bis", "equipped_low", "in_bag", "missing"
+local function GetItemBiSState(itemID, slot, bisIlvl, bonusIDs)
+    if not itemID then return "missing" end
+
+    -- Check equipped
+    local slotID = SLOT_IDS[slot]
+    if slotID then
+        local equippedID = GetInventoryItemID("player", slotID)
+        if equippedID == itemID then
+            -- Check ilvl match
+            if bisIlvl and bisIlvl >= MIN_SANE_ILVL then
+                local equippedLink = GetInventoryItemLink("player", slotID)
+                if equippedLink then
+                    local equippedIlvl = GetDetailedItemLevelInfo(equippedLink)
+                    if equippedIlvl and equippedIlvl >= bisIlvl then
+                        return "equipped_bis"  -- green checkmark
+                    else
+                        return "equipped_low"  -- yellow arrow (upgradeable)
+                    end
+                end
+            end
+            return "equipped_bis"  -- can't verify ilvl, assume OK
+        end
+    end
+
+    -- Check bag
+    if bagCacheDirty then ScanBags() end
+    if bagBiSCache[itemID] and bagBiSCache[itemID].inBag then
+        return "in_bag"  -- blue bag icon
+    end
+
+    return "missing"  -- red X
+end
+
+-- ============================================================
+-- LIST ROW POOL (for Gear tab list view)
+-- ============================================================
+
+local listRows = {}
+
+local function GetListRow(index)
+    if listRows[index] then
+        listRows[index]:Show()
+        return listRows[index]
+    end
+
+    local row = CreateFrame("Button", nil, scrollChild)
+    row:SetHeight(LIST_ROW_HEIGHT)
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    row:EnableMouse(true)
+
+    -- Row background (alternating, subtle)
+    local rowBg = row:CreateTexture(nil, "BACKGROUND")
+    rowBg:SetAllPoints()
+    rowBg:SetColorTexture(0.1, 0.1, 0.15, 0.3)
+    row.rowBg = rowBg
+
+    -- Icon border (status-colored)
+    local borderTex = row:CreateTexture(nil, "BACKGROUND", nil, 1)
+    borderTex:SetSize(LIST_ICON_SIZE + LIST_BORDER_SIZE * 2, LIST_ICON_SIZE + LIST_BORDER_SIZE * 2)
+    borderTex:SetPoint("LEFT", row, "LEFT", 4, 0)
+    borderTex:SetColorTexture(0.8, 0, 0, 1)
+    row.borderTex = borderTex
+
+    -- Icon
+    local icon = row:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(LIST_ICON_SIZE, LIST_ICON_SIZE)
+    icon:SetPoint("CENTER", borderTex, "CENTER", 0, 0)
+    row.icon = icon
+
+    -- Status icon (overlays top-right of item icon)
+    local statusIcon = row:CreateTexture(nil, "OVERLAY")
+    statusIcon:SetSize(16, 16)
+    statusIcon:SetPoint("TOPRIGHT", borderTex, "TOPRIGHT", 3, 3)
+    row.statusIcon = statusIcon
+
+    -- Item name (large, colored by quality)
+    local nameText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    nameText:SetPoint("TOPLEFT", borderTex, "TOPRIGHT", 6, -4)
+    nameText:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+    nameText:SetJustifyH("LEFT")
+    nameText:SetWordWrap(false)
+    row.nameText = nameText
+
+    -- Drop source text (smaller, gray) - includes slot info
+    local sourceText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    sourceText:SetPoint("TOPLEFT", nameText, "BOTTOMLEFT", 0, -2)
+    sourceText:SetPoint("RIGHT", row, "RIGHT", -4, 0)
+    sourceText:SetJustifyH("LEFT")
+    sourceText:SetWordWrap(false)
+    sourceText:SetTextColor(0.6, 0.6, 0.6, 1)
+    row.sourceText = sourceText
+
+    -- Wishlist star
+    local wishlistStar = row:CreateTexture(nil, "OVERLAY")
+    wishlistStar:SetSize(18, 18)
+    wishlistStar:SetPoint("TOPRIGHT", borderTex, "TOPRIGHT", -1, -1)
+    wishlistStar:SetAtlas("PetJournal-FavoritesIcon")
+    wishlistStar:Hide()
+    row.wishlistStar = wishlistStar
+
+    -- Highlight
+    local highlight = row:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetAllPoints()
+    highlight:SetColorTexture(1, 1, 1, 0.06)
+
+    -- Tooltip
+    row:SetScript("OnEnter", function(self)
+        if self.itemID then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            local itemStr = BuildItemString(self.itemID, self.bonusIDs) or ("item:" .. self.itemID)
+            GameTooltip:SetHyperlink(itemStr)
+            local correctIlvl = GetItemIlvl(self.itemID, self.bonusIDs, self.displayIlvl)
+            if correctIlvl and correctIlvl >= MIN_SANE_ILVL then
+                for i = 2, GameTooltip:NumLines() do
+                    local line = _G["GameTooltipTextLeft" .. i]
+                    if line then
+                        local text = line:GetText()
+                        if text and text:match(ITEM_LEVEL:gsub("%%d", "%%d+")) then
+                            line:SetText(ITEM_LEVEL:format(correctIlvl))
+                            break
+                        end
+                    end
+                end
+            end
+            if self.fullSource and self.fullSource ~= "" then
+                GameTooltip:AddLine(" ")
+                local formatted = FormatSourceTooltip(self.fullSource, self.gearSource or selectedGearSource)
+                GameTooltip:AddLine("Source: " .. formatted, 1, 1, 1, true)
+            end
+            GameTooltip:AddLine(" ")
+            if ADHDBiS_LootDB and ADHDBiS_LootDB.wishlist and ADHDBiS_LootDB.wishlist[self.itemID] then
+                GameTooltip:AddLine("|cFFFFD100Wishlisted|r", 1, 0.82, 0)
+            end
+            GameTooltip:AddLine("|cFF888888Click: Guide | Shift+Click: Link | RClick: Wishlist|r", 0.5, 0.5, 0.5, true)
+            GameTooltip:Show()
+        end
+    end)
+    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    -- Click handlers (same as grid cells)
+    row:SetScript("OnClick", function(self, button)
+        if not self.itemID then return end
+        if button == "RightButton" and not IsShiftKeyDown() then
+            if not ADHDBiS_LootDB then ADHDBiS_LootDB = {} end
+            if not ADHDBiS_LootDB.wishlist then ADHDBiS_LootDB.wishlist = {} end
+            if ADHDBiS_LootDB.wishlist[self.itemID] then
+                ADHDBiS_LootDB.wishlist[self.itemID] = nil
+                self.wishlistStar:Hide()
+                print("|cFF9482C9ADHDBiS:|r Removed from wishlist.")
+            else
+                ADHDBiS_LootDB.wishlist[self.itemID] = true
+                self.wishlistStar:Show()
+                print("|cFF9482C9ADHDBiS:|r Added to wishlist!")
+            end
+            return
+        end
+        if button == "LeftButton" and IsShiftKeyDown() then
+            local _, link = C_Item.GetItemInfo(self.itemID)
+            if link then
+                if not HandleModifiedItemClick(link) then
+                    ChatEdit_InsertLink(link)
+                end
+            end
+        elseif button == "RightButton" and IsShiftKeyDown() then
+            local url = "https://www.wowhead.com/item=" .. self.itemID
+            if not ns.wowheadCopyBox then
+                local box = CreateFrame("EditBox", "ADHDBiSWowheadBox", mainFrame, "InputBoxTemplate")
+                box:SetSize(mainFrame:GetWidth() - 40, 24)
+                box:SetPoint("TOP", mainFrame, "BOTTOM", 0, -4)
+                box:SetAutoFocus(true)
+                box:SetFontObject("ChatFontNormal")
+                box:SetScript("OnEscapePressed", function(s) s:Hide() end)
+                box:SetScript("OnEnterPressed", function(s) s:Hide() end)
+                box:Hide()
+                ns.wowheadCopyBox = box
+            end
+            ns.wowheadCopyBox:SetText(url)
+            ns.wowheadCopyBox:Show()
+            ns.wowheadCopyBox:HighlightText()
+            ns.wowheadCopyBox:SetFocus()
+        elseif button == "LeftButton" and not IsShiftKeyDown() then
+            local _, link = C_Item.GetItemInfo(self.itemID)
+            if link then
+                local refStr = link:match("|H(item:[^|]+)|h")
+                if refStr then SetItemRef(refStr, link, "LeftButton") end
+            end
+        end
+    end)
+
+    listRows[index] = row
+    return row
+end
+
+local function HideAllListRows()
+    for _, row in ipairs(listRows) do
+        row:Hide()
+        row.itemID = nil
+        row.fullSource = nil
+        row.gearSource = nil
+    end
+end
+
+-- ============================================================
 -- SECTION HEADER POOL (for grid tabs with section headers)
 -- ============================================================
 
@@ -944,6 +1281,7 @@ end
 local function HideAll()
     HideAllRows()
     HideAllGridCells()
+    HideAllListRows()
     HideAllSectionHeaders()
 end
 
@@ -994,58 +1332,146 @@ local function GetAvailableSources()
 end
 ns.GetAvailableSources = GetAvailableSources
 
--- GEAR TAB (Grid)
+-- GEAR TAB (List View - two columns with icon + name + drop source)
 local function RenderGear()
     local specData = GetSpecData()
     if not specData or not specData.gear then return end
     local gearList = specData.gear[selectedGearSource]
+    -- Fallback: if overall doesn't exist yet, use raid
+    if not gearList and selectedGearSource == "overall" then
+        gearList = specData.gear["raid"]
+    end
     if not gearList then return end
 
-    local cellIndex = 0
-    for _, item in ipairs(gearList) do
-        cellIndex = cellIndex + 1
-        local cell = GetGridCell(cellIndex)
+    -- Ensure bag cache is fresh
+    if bagCacheDirty then ScanBags() end
 
-        -- Icon
-        cell.icon:SetTexture(GetItemIcon(item.itemID))
+    local frameWidth = scrollChild:GetWidth()
+    local useTwoCols = frameWidth >= 400
+    local colWidth = useTwoCols and math.floor((frameWidth - LIST_COL_GAP) / 2) or frameWidth
 
-        -- Equipped check: green border + dim if equipped, red border + full opacity if not
-        local slotID = SLOT_IDS[item.slot]
-        local equippedID = slotID and GetInventoryItemID("player", slotID)
-        local isEquipped = (equippedID and equippedID == item.itemID)
-        if isEquipped then
-            cell.borderTex:SetColorTexture(0, 0.8, 0, 1) -- green
-            cell.icon:SetAlpha(0.35)
-            cell.icon:SetDesaturated(true)
+    local rowIndex = 0
+    local yOffset = 0
+
+    -- BiS progress counter
+    local totalItems = #gearList
+    local equippedCount = 0
+
+    for i, item in ipairs(gearList) do
+        rowIndex = rowIndex + 1
+        local row = GetListRow(rowIndex)
+
+        -- Alternating row background
+        if rowIndex % 2 == 0 then
+            row.rowBg:SetColorTexture(0.12, 0.1, 0.18, 0.3)
         else
-            cell.borderTex:SetColorTexture(0.8, 0, 0, 1) -- red
-            cell.icon:SetAlpha(1)
-            cell.icon:SetDesaturated(false)
+            row.rowBg:SetColorTexture(0.08, 0.08, 0.12, 0.15)
         end
 
-        -- Slot label
-        local slotText = SHORT_SLOT[item.slot] or item.slot
-        -- Cache the resolved ilvl for tooltip correction (don't display in slot label)
-        local displayIlvl = GetItemIlvl(item.itemID, item.bonusIDs, (item.ilvl and item.ilvl > 0) and item.ilvl or nil)
-        cell.label:SetText(slotText)
-        -- Source label
-        cell.sourceLabel:SetText(ShortSource(item.source))
-        cell.fullSource = item.source or ""
-        cell.gearSource = selectedGearSource
-        cell.itemID = item.itemID
-        cell.bonusIDs = item.bonusIDs or ""
-        cell.displayIlvl = displayIlvl
-        cell.tooltipLines = item.tooltip
+        -- Icon
+        row.icon:SetTexture(GetItemIcon(item.itemID))
+
+        -- 4-state status
+        local bisIlvl = GetItemIlvl(item.itemID, item.bonusIDs, (item.ilvl and item.ilvl > 0) and item.ilvl or nil)
+        local state = GetItemBiSState(item.itemID, item.slot, bisIlvl, item.bonusIDs)
+
+        if state == "equipped_bis" then
+            row.borderTex:SetColorTexture(0, 0.7, 0, 1)  -- green
+            row.icon:SetAlpha(0.5)
+            row.icon:SetDesaturated(true)
+            row.statusIcon:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
+            row.statusIcon:SetVertexColor(1, 1, 1, 1)
+            row.statusIcon:Show()
+            equippedCount = equippedCount + 1
+        elseif state == "equipped_low" then
+            row.borderTex:SetColorTexture(0.9, 0.7, 0, 1)  -- yellow
+            row.icon:SetAlpha(0.7)
+            row.icon:SetDesaturated(false)
+            row.statusIcon:SetTexture("Interface\\RaidFrame\\ReadyCheck-Waiting")
+            row.statusIcon:SetVertexColor(1, 1, 1, 1)
+            row.statusIcon:Show()
+            equippedCount = equippedCount + 1
+        elseif state == "in_bag" then
+            row.borderTex:SetColorTexture(0, 0.4, 0.8, 1)  -- blue
+            row.icon:SetAlpha(1)
+            row.icon:SetDesaturated(false)
+            row.statusIcon:SetTexture("Interface\\Icons\\INV_Misc_Bag_08")
+            row.statusIcon:SetVertexColor(1, 1, 1, 1)
+            row.statusIcon:Show()
+        else -- missing
+            row.borderTex:SetColorTexture(0.6, 0, 0, 1)  -- red
+            row.icon:SetAlpha(1)
+            row.icon:SetDesaturated(false)
+            row.statusIcon:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
+            row.statusIcon:SetVertexColor(1, 1, 1, 1)
+            row.statusIcon:Show()
+        end
+
+        -- Item name (colored by quality)
+        local itemName, _, qualColor = GetCachedItemInfo(item.itemID)
+        if itemName then
+            row.nameText:SetText("|cFF" .. qualColor .. itemName .. "|r")
+        else
+            -- Fallback: use name from data file
+            row.nameText:SetText("|cFFA335EE" .. (item.name or "Loading...") .. "|r")
+        end
+
+        -- Drop source (with slot prefix)
+        local sourceStr = item.source or ""
+        local slotName = item.slot or ""
+        if sourceStr ~= "" then
+            row.sourceText:SetText(slotName .. ": " .. sourceStr)
+        else
+            row.sourceText:SetText(slotName)
+        end
+
+        -- Data for tooltip/clicks
+        row.fullSource = sourceStr
+        row.gearSource = selectedGearSource
+        row.itemID = item.itemID
+        row.bonusIDs = item.bonusIDs or ""
+        row.displayIlvl = bisIlvl
 
         -- Wishlist star
         if ADHDBiS_LootDB and ADHDBiS_LootDB.wishlist and ADHDBiS_LootDB.wishlist[item.itemID] then
-            cell.wishlistStar:Show()
+            row.wishlistStar:Show()
         else
-            cell.wishlistStar:Hide()
+            row.wishlistStar:Hide()
+        end
+
+        -- Position: two-column layout
+        if useTwoCols then
+            local col = (i - 1) % 2
+            local visualRow = math.floor((i - 1) / 2)
+            row:ClearAllPoints()
+            row:SetWidth(colWidth)
+            row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT",
+                col * (colWidth + LIST_COL_GAP),
+                -(visualRow * (LIST_ROW_HEIGHT + LIST_ROW_PADDING)))
+        else
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -(yOffset))
+            row:SetPoint("RIGHT", scrollChild, "RIGHT", 0, 0)
+            yOffset = yOffset + LIST_ROW_HEIGHT + LIST_ROW_PADDING
         end
     end
 
-    local totalHeight = LayoutGridCells(cellIndex, 0)
+    -- Calculate total height
+    local totalHeight
+    if useTwoCols then
+        local numVisualRows = math.ceil(#gearList / 2)
+        totalHeight = numVisualRows * (LIST_ROW_HEIGHT + LIST_ROW_PADDING)
+    else
+        totalHeight = yOffset
+    end
+
+    -- Progress bar at bottom
+    if totalItems > 0 then
+        local pct = math.floor((equippedCount / totalItems) * 100)
+        local progressStr = equippedCount .. "/" .. totalItems .. " equipped (" .. pct .. "%)"
+        versionText:SetText(progressStr .. " | " .. (ADHDBiS_Data and ADHDBiS_Data.version or "?") .. " | " .. selectedSource)
+    end
+
     scrollChild:SetHeight(math.max(1, totalHeight))
 end
 
@@ -1116,12 +1542,23 @@ local function RenderTrinketRankings()
                     cell.icon:SetDesaturated(false)
                 end
 
-                -- Tier label below icon
+                -- Tier label + source below icon
                 local tierColor = TIER_COLORS[tier] or "|cFFFFFFFF"
+                local trinketSource = FindTrinketSource(tr.itemID)
                 cell.label:SetText(tierColor .. tier .. " Tier|r")
-                cell.sourceLabel:SetText("")
-                cell.fullSource = ""
-                cell.gearSource = nil
+                if trinketSource then
+                    -- Truncate long source for display
+                    local shortSource = trinketSource
+                    if #shortSource > 25 then
+                        shortSource = shortSource:sub(1, 23) .. ".."
+                    end
+                    cell.sourceLabel:SetText("|cFF888888" .. shortSource .. "|r")
+                    cell.fullSource = trinketSource
+                else
+                    cell.sourceLabel:SetText("")
+                    cell.fullSource = ""
+                end
+                cell.gearSource = trinketSource
                 cell.itemID = tr.itemID
                 cell.bonusIDs = ""
 
@@ -1580,7 +2017,8 @@ exportBtn:SetScript("OnClick", function()
 
     local gearList = specData.gear and specData.gear[selectedGearSource]
     if gearList then
-        table.insert(lines, "-- " .. (selectedGearSource == "raid" and "Raid" or "M+") .. " Gear --")
+        local gsLabel = selectedGearSource == "raid" and "Raid" or (selectedGearSource == "mythicplus" and "M+" or "Overall")
+        table.insert(lines, "-- " .. gsLabel .. " Gear --")
         for _, item in ipairs(gearList) do
             table.insert(lines, item.slot .. ": " .. item.name .. " (" .. item.source .. ")")
         end
@@ -1713,13 +2151,11 @@ function ns.RefreshContent()
     -- Show/hide gear source toggle
     if selectedTab == 1 then
         gearToggleFrame:Show()
-        if selectedGearSource == "raid" then
-            raidBtn.bg:SetColorTexture(0.4, 0.2, 0.6, 0.7)
-            mplusBtn.bg:SetColorTexture(0.2, 0.2, 0.3, 0.6)
-        else
-            raidBtn.bg:SetColorTexture(0.2, 0.2, 0.3, 0.6)
-            mplusBtn.bg:SetColorTexture(0.4, 0.2, 0.6, 0.7)
-        end
+        local activeBg = {0.4, 0.2, 0.6, 0.7}
+        local inactiveBg = {0.2, 0.2, 0.3, 0.6}
+        overallBtn.bg:SetColorTexture(unpack(selectedGearSource == "overall" and activeBg or inactiveBg))
+        raidBtn.bg:SetColorTexture(unpack(selectedGearSource == "raid" and activeBg or inactiveBg))
+        mplusBtn.bg:SetColorTexture(unpack(selectedGearSource == "mythicplus" and activeBg or inactiveBg))
         scrollFrame:SetPoint("TOPLEFT", gearToggleFrame, "BOTTOMLEFT", 0, -4)
     else
         gearToggleFrame:Hide()
@@ -1742,7 +2178,10 @@ function ns.RefreshContent()
     end
 
     scrollFrame:SetVerticalScroll(0)
-    UpdateVersionText()
+    -- Gear tab sets its own footer with progress; other tabs use default
+    if selectedTab ~= 1 then
+        UpdateVersionText()
+    end
 end
 
 -- ============================================================
@@ -1798,6 +2237,22 @@ local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
 eventFrame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+eventFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+eventFrame:RegisterEvent("BAG_UPDATE_DELAYED")
+
+-- Throttle refresh: avoid multiple refreshes in same frame
+local refreshQueued = false
+local function QueueRefresh()
+    if refreshQueued then return end
+    if not mainFrame:IsShown() then return end
+    refreshQueued = true
+    C_Timer.After(0.1, function()
+        refreshQueued = false
+        if mainFrame:IsShown() then
+            ns.RefreshContent()
+        end
+    end)
+end
 
 eventFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
@@ -1810,6 +2265,8 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         mainFrame:SetSize(db.windowWidth or defaults.windowWidth, db.windowHeight or defaults.windowHeight)
 
         DetectSpec()
+        BuildBiSLookup()
+        bagCacheDirty = true
 
         -- Check if data is stale
         if ADHDBiS_Data and ADHDBiS_Data.version then
@@ -1949,20 +2406,37 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
 
     elseif event == "ACTIVE_TALENT_GROUP_CHANGED" then
         DetectSpec()
+        bagCacheDirty = true
         if mainFrame:IsShown() then ns.RefreshContent() end
 
     elseif event == "GET_ITEM_INFO_RECEIVED" then
         local itemID = ...
-        if itemID and ilvlPendingItems[itemID] then
-            -- Clear pending flag and invalidate cache so it re-fetches with real data
-            local cacheKey = ilvlPendingItems[itemID]
-            ilvlPendingItems[itemID] = nil
-            ilvlCache[cacheKey] = nil
-            -- Refresh display if gear tab is showing
-            if mainFrame:IsShown() and selectedTab == 1 then
-                ns.RefreshContent()
+        if itemID then
+            -- Update item info cache
+            local name, _, quality = C_Item.GetItemInfo(itemID)
+            if name then
+                local color = QUALITY_COLORS[quality] or "A335EE"
+                itemInfoCache[itemID] = { name = name, quality = quality, color = color }
+            end
+            -- Update ilvl cache
+            if ilvlPendingItems[itemID] then
+                local cacheKey = ilvlPendingItems[itemID]
+                ilvlPendingItems[itemID] = nil
+                ilvlCache[cacheKey] = nil
+            end
+            -- Throttled refresh if gear tab is showing
+            if mainFrame:IsShown() and (selectedTab == 1 or selectedTab == 2) then
+                QueueRefresh()
             end
         end
+
+    elseif event == "PLAYER_EQUIPMENT_CHANGED" then
+        bagCacheDirty = true
+        QueueRefresh()
+
+    elseif event == "BAG_UPDATE_DELAYED" then
+        bagCacheDirty = true
+        QueueRefresh()
     end
 end)
 
@@ -1976,7 +2450,7 @@ minimapBtn:SetFrameStrata("MEDIUM")
 minimapBtn:SetFrameLevel(8)
 minimapBtn:EnableMouse(true)
 minimapBtn:SetMovable(true)
-minimapBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+minimapBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp", "MiddleButtonUp")
 
 -- Background (dark circle) - offset matches WoW standard minimap buttons
 local mmBg = minimapBtn:CreateTexture(nil, "BACKGROUND")
@@ -2045,6 +2519,7 @@ minimapBtn:SetScript("OnEnter", function(self)
     GameTooltip:AddLine("|cFF9482C9ADHDBiS|r")
     GameTooltip:AddLine("|cFFFFFFFFLeft-click:|r Toggle BiS Panel", 1, 1, 1)
     GameTooltip:AddLine("|cFFFFFFFFRight-click:|r Commands Menu", 1, 1, 1)
+    GameTooltip:AddLine("|cFFFFFFFFMiddle-click:|r Toggle LootRadar", 1, 1, 1)
     GameTooltip:AddLine("|cFF888888Shift+Drag anywhere to move|r", 0.5, 0.5, 0.5)
     GameTooltip:AddLine("|cFF888888/adhd minimap hide|r", 0.4, 0.4, 0.4)
     GameTooltip:Show()
@@ -2081,6 +2556,7 @@ local menuItems = {
     { text = "|cFF9482C9ADHDBiS|r",     cmd = nil,         isHeader = true },
     { text = "Toggle BiS Panel",         cmd = "bis" },
     { text = "Toggle Loot Tracker",      cmd = "loot" },
+    { text = "|cFF00FF00LootRadar|r",    cmd = "radar" },
     { text = "---",                      cmd = nil,         isSep = true },
     { text = "New Loot Session",         cmd = "loot new" },
     { text = "Start Tracking",           cmd = "loot start" },
@@ -2151,6 +2627,10 @@ minimapBtn:SetScript("OnClick", function(self, button)
         mmMenu:ClearAllPoints()
         mmMenu:SetPoint("TOPRIGHT", self, "BOTTOMLEFT", 0, 0)
         mmMenu:Show()
+    elseif button == "MiddleButton" then
+        if ns.ToggleLootRadar then
+            ns.ToggleLootRadar("")
+        end
     end
 end)
 
@@ -2164,6 +2644,51 @@ mmInitFrame:SetScript("OnEvent", function(self)
     if db.minimapHidden then
         minimapBtn:Hide()
     end
+    self:UnregisterAllEvents()
+end)
+
+-- ============================================================
+-- TOOLTIP BiS INTEGRATION (performance-critical: cached lookups only)
+-- ============================================================
+
+local tooltipHooked = false
+local function HookTooltip()
+    if tooltipHooked then return end
+    tooltipHooked = true
+
+    -- Hook into TooltipDataProcessor for item tooltips (modern API, Midnight+)
+    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall then
+        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip, data)
+            if tooltip ~= GameTooltip then return end
+            if not data or not data.id then return end
+
+            local itemID = data.id
+            local entries = bisLookup[itemID]
+            if not entries then return end
+
+            -- Deduplicate: show each class/spec combo once
+            local seen = {}
+            for _, entry in ipairs(entries) do
+                local key = entry.class .. entry.spec .. entry.gearSource
+                if not seen[key] then
+                    seen[key] = true
+                    local gsLabel = entry.gearSource == "mythicplus" and "M+" or "Raid"
+                    tooltip:AddLine("|cFF9482C9BiS:|r " .. entry.spec .. " " .. entry.class .. " |cFF888888(" .. gsLabel .. ")|r", 1, 1, 1)
+                end
+            end
+            tooltip:Show()
+        end)
+    end
+end
+
+-- Hook tooltip after BiS lookup is built (deferred to avoid load-time overhead)
+local tooltipInitFrame = CreateFrame("Frame")
+tooltipInitFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+tooltipInitFrame:SetScript("OnEvent", function(self)
+    C_Timer.After(1, function()
+        BuildBiSLookup()
+        HookTooltip()
+    end)
     self:UnregisterAllEvents()
 end)
 
@@ -2210,11 +2735,21 @@ SlashCmdList["ADHDBIS"] = function(msg)
         else
             print("|cFF9482C9ADHDBiS:|r Loot Tracker not loaded.")
         end
+    elseif cmd == "radar" or cmd:find("^radar") then
+        -- Delegate to loot radar
+        local subCmd = cmd:match("^radar%s+(.+)") or ""
+        if ns.ToggleLootRadar then
+            ns.ToggleLootRadar(subCmd)
+        else
+            print("|cFF9482C9ADHDBiS:|r LootRadar not loaded.")
+        end
     else
         print("|cFF9482C9ADHDBiS:|r Commands:")
         print("  |cFFFFFFFF/adhd bis|r - Toggle BiS panel")
         print("  |cFFFFFFFF/adhd loot|r - Toggle Loot Tracker")
         print("  |cFFFFFFFF/adhd loot help|r - All loot tracker commands")
+        print("  |cFFFFFFFF/adhd radar|r - Toggle LootRadar (M+ upgrade scanner)")
+        print("  |cFFFFFFFF/adhd radar help|r - LootRadar commands")
         print("  |cFFFFFFFF/adhd minimap hide|r - Hide minimap button")
         print("  |cFFFFFFFF/adhd minimap show|r - Show minimap button")
         print("  |cFFFFFFFF/adhd minimap reset|r - Reset button to default position")

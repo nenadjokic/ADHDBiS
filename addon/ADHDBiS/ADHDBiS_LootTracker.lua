@@ -56,16 +56,18 @@ for k, v in pairs(FILTER_DEFAULTS) do lootFilters[k] = v end
 
 -- Sound alert options for BiS/wishlist drops
 local ALERT_SOUNDS = {
-    { id = 8960,  name = "Legendary Fanfare" },
-    { id = 31578, name = "Epic Loot Toast" },
-    { id = 8959,  name = "Raid Warning" },
-    { id = 8457,  name = "Ready Check" },
-    { id = 17316, name = "Bonus Roll" },
-    { id = 44048, name = "Azerite Armor" },
-    { id = 7270,  name = "Quest Complete" },
-    { id = 8554,  name = "Level Up" },
-    { id = 170218, name = "Keystone Complete" },
-    { id = 0,     name = "None (no sound)" },
+    { id = 63971,  name = "Legendary Loot" },
+    { id = 31578,  name = "Epic Loot Toast" },
+    { id = 8959,   name = "Raid Warning" },
+    { id = 8960,   name = "Ready Check" },
+    { id = 31581,  name = "Bonus Roll" },
+    { id = 118238, name = "Azerite Armor" },
+    { id = 619,    name = "Quest Complete" },
+    { id = 888,    name = "Level Up" },
+    { id = 74437,  name = "Keystone Upgrade" },
+    { id = 12891,  name = "Achievement" },
+    { id = 51561,  name = "Warforged Item" },
+    { id = 0,      name = "None (no sound)" },
 }
 local selectedAlertSound = 1 -- index into ALERT_SOUNDS, loaded from DB in InitDB
 

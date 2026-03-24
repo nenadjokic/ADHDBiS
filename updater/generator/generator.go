@@ -92,6 +92,13 @@ func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, add
 
 				// Gear
 				sb.WriteString("                    gear = {\n")
+				if len(data.OverallGear) > 0 {
+					sb.WriteString("                        overall = {\n")
+					for _, item := range data.OverallGear {
+						writeGearItem(&sb, item, "                            ")
+					}
+					sb.WriteString("                        },\n")
+				}
 				if len(data.RaidGear) > 0 {
 					sb.WriteString("                        raid = {\n")
 					for _, item := range data.RaidGear {

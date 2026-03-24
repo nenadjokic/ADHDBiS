@@ -170,6 +170,7 @@ func Delay() {
 // SpecData holds all parsed data for one specialization.
 type SpecData struct {
 	Name         string
+	OverallGear  []GearItem
 	RaidGear     []GearItem
 	MythicGear   []GearItem
 	Enchants     []EnchantItem
