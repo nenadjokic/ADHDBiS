@@ -691,6 +691,14 @@ local function GetGridCell(index)
     sourceLabel:SetTextColor(0.55, 0.55, 0.55, 1)
     cell.sourceLabel = sourceLabel
 
+    -- Wishlist star overlay (top-right of icon)
+    local wishlistStar = cell:CreateTexture(nil, "OVERLAY")
+    wishlistStar:SetSize(22, 22)
+    wishlistStar:SetPoint("TOPRIGHT", borderTex, "TOPRIGHT", 5, 5)
+    wishlistStar:SetAtlas("PetJournal-FavoritesIcon")
+    wishlistStar:Hide()
+    cell.wishlistStar = wishlistStar
+
     -- Highlight on hover
     local highlight = cell:CreateTexture(nil, "HIGHLIGHT")
     highlight:SetAllPoints(borderTex)
@@ -722,7 +730,10 @@ local function GetGridCell(index)
                 GameTooltip:AddLine("Source: " .. formatted, 1, 1, 1, true)
             end
             GameTooltip:AddLine(" ")
-            GameTooltip:AddLine("|cFF888888Click: Adventure Guide | Shift+Click: Link | Shift+RClick: Wowhead|r", 0.5, 0.5, 0.5, true)
+            if ADHDBiS_LootDB and ADHDBiS_LootDB.wishlist and ADHDBiS_LootDB.wishlist[self.itemID] then
+                GameTooltip:AddLine("|cFFFFD100Wishlisted|r", 1, 0.82, 0)
+            end
+            GameTooltip:AddLine("|cFF888888Click: Guide | Shift+Click: Link | RClick: Wishlist | Shift+RClick: Wowhead|r", 0.5, 0.5, 0.5, true)
             GameTooltip:Show()
         end
     end)
@@ -732,6 +743,22 @@ local function GetGridCell(index)
     cell:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     cell:SetScript("OnClick", function(self, button)
         if not self.itemID then return end
+
+        if button == "RightButton" and not IsShiftKeyDown() then
+            -- Right Click: toggle wishlist
+            if not ADHDBiS_LootDB then ADHDBiS_LootDB = {} end
+            if not ADHDBiS_LootDB.wishlist then ADHDBiS_LootDB.wishlist = {} end
+            if ADHDBiS_LootDB.wishlist[self.itemID] then
+                ADHDBiS_LootDB.wishlist[self.itemID] = nil
+                self.wishlistStar:Hide()
+                print("|cFF9482C9ADHDBiS:|r Removed from wishlist.")
+            else
+                ADHDBiS_LootDB.wishlist[self.itemID] = true
+                self.wishlistStar:Show()
+                print("|cFF9482C9ADHDBiS:|r Added to wishlist!")
+            end
+            return
+        end
 
         if button == "LeftButton" and IsShiftKeyDown() then
             -- Shift+Left Click: link item to chat / insert into Auctionator etc.
@@ -789,6 +816,7 @@ local function HideAllGridCells()
         cell.itemID = nil
         cell.fullSource = nil
         cell.gearSource = nil
+        if cell.wishlistStar then cell.wishlistStar:Hide() end
     end
 end
 
@@ -1008,6 +1036,13 @@ local function RenderGear()
         cell.bonusIDs = item.bonusIDs or ""
         cell.displayIlvl = displayIlvl
         cell.tooltipLines = item.tooltip
+
+        -- Wishlist star
+        if ADHDBiS_LootDB and ADHDBiS_LootDB.wishlist and ADHDBiS_LootDB.wishlist[item.itemID] then
+            cell.wishlistStar:Show()
+        else
+            cell.wishlistStar:Hide()
+        end
     end
 
     local totalHeight = LayoutGridCells(cellIndex, 0)
@@ -1089,6 +1124,13 @@ local function RenderTrinketRankings()
                 cell.gearSource = nil
                 cell.itemID = tr.itemID
                 cell.bonusIDs = ""
+
+                -- Wishlist star
+                if ADHDBiS_LootDB and ADHDBiS_LootDB.wishlist and ADHDBiS_LootDB.wishlist[tr.itemID] then
+                    cell.wishlistStar:Show()
+                else
+                    cell.wishlistStar:Hide()
+                end
 
                 -- Manual grid positioning within this tier section
                 local localIdx = tierCellCount - 1

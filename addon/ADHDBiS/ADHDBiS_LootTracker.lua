@@ -42,6 +42,25 @@ local lootSectionHeaders = {}
 local isTracking = false
 local pendingInstanceEntry = nil -- set during popup to defer session creation
 
+-- Filter state (initialized from DB in InitDB, defaults here)
+local FILTER_DEFAULTS = {
+    gear = true,
+    mount = true,
+    recipe = true,
+    consumable = false,
+    other = false,
+    epicOnly = false,
+}
+local lootFilters = {}
+for k, v in pairs(FILTER_DEFAULTS) do lootFilters[k] = v end
+
+local function SaveFilters()
+    ADHDBiS_LootDB.lootFilters = {}
+    for k, v in pairs(lootFilters) do
+        ADHDBiS_LootDB.lootFilters[k] = v
+    end
+end
+
 -- ============================================================
 -- LOOT TRACKER FRAME
 -- ============================================================
@@ -465,17 +484,29 @@ local function ToggleWishlist(itemID)
     end
 end
 
--- Filter state (initialized from DB in InitDB, defaults here)
-local FILTER_DEFAULTS = {
-    gear = true,
-    mount = true,
-    recipe = true,
-    consumable = false,
-    other = false,
-    epicOnly = false,
-}
-local lootFilters = {}
-for k, v in pairs(FILTER_DEFAULTS) do lootFilters[k] = v end
+-- Check if an item is in the player's BiS list (any source, any gear list)
+local function IsBiSItem(itemID)
+    if not itemID or not ADHDBiS_Data then return false end
+    local playerClass = UnitClass("player")
+    if not playerClass or not ADHDBiS_Data.classes or not ADHDBiS_Data.classes[playerClass] then return false end
+    for specName, sources in pairs(ADHDBiS_Data.classes[playerClass]) do
+        for sourceName, data in pairs(sources) do
+            if data.gear then
+                if data.gear.raid then
+                    for _, item in ipairs(data.gear.raid) do
+                        if item.itemID == itemID then return true end
+                    end
+                end
+                if data.gear.mythicplus then
+                    for _, item in ipairs(data.gear.mythicplus) do
+                        if item.itemID == itemID then return true end
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
 
 local function GetLootGridCell(index)
     if lootGridCells[index] then
@@ -501,16 +532,26 @@ local function GetLootGridCell(index)
     cell.icon = icon
 
     -- Upgrade arrow overlay (top-left of icon)
-    local upgradeArrow = cell:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    upgradeArrow:SetPoint("TOPLEFT", borderTex, "TOPLEFT", 1, -1)
+    local upgradeArrow = cell:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    upgradeArrow:SetPoint("TOPLEFT", borderTex, "TOPLEFT", 0, 1)
     upgradeArrow:SetText("")
     cell.upgradeArrow = upgradeArrow
 
-    -- Wishlist star overlay (top-right of icon)
-    local wishlistStar = cell:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    wishlistStar:SetPoint("TOPRIGHT", borderTex, "TOPRIGHT", -1, -1)
-    wishlistStar:SetText("")
+    -- Wishlist star overlay (top-right of icon) - texture-based for visibility
+    local wishlistStar = cell:CreateTexture(nil, "OVERLAY")
+    wishlistStar:SetSize(22, 22)
+    wishlistStar:SetPoint("TOPRIGHT", borderTex, "TOPRIGHT", 5, 5)
+    wishlistStar:SetAtlas("PetJournal-FavoritesIcon")
+    wishlistStar:Hide()
     cell.wishlistStar = wishlistStar
+
+    -- BiS glow (golden border glow behind the quality border)
+    local bisGlow = cell:CreateTexture(nil, "BACKGROUND", nil, -1)
+    bisGlow:SetSize(GRID_ICON_SIZE + 14, GRID_ICON_SIZE + 14)
+    bisGlow:SetPoint("CENTER", borderTex, "CENTER", 0, 0)
+    bisGlow:SetAtlas("bags-glow-orange")
+    bisGlow:Hide()
+    cell.bisGlow = bisGlow
 
     -- Line 1: ilvl
     local ilvlLabel = cell:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -580,7 +621,7 @@ local function GetLootGridCell(index)
             if self.itemID then
                 ToggleWishlist(self.itemID)
                 local wishlisted = IsWishlisted(self.itemID)
-                self.wishlistStar:SetText(wishlisted and "|cFFFFD100*|r" or "")
+                if wishlisted then self.wishlistStar:Show() else self.wishlistStar:Hide() end
                 self.isWishlisted = wishlisted
                 local name = C_Item.GetItemNameByID(self.itemID) or "Item"
                 if wishlisted then
@@ -764,12 +805,6 @@ local function InitDB()
     end
 end
 
-local function SaveFilters()
-    ADHDBiS_LootDB.lootFilters = {}
-    for k, v in pairs(lootFilters) do
-        ADHDBiS_LootDB.lootFilters[k] = v
-    end
-end
 
 -- Get current instance name for session labeling
 local function GetInstanceName()
@@ -1078,7 +1113,10 @@ function RefreshLootGrid()
                 -- Wishlist star
                 local wishlisted = IsWishlisted(item.itemID)
                 cell.isWishlisted = wishlisted
-                cell.wishlistStar:SetText(wishlisted and "|cFFFFD100*|r" or "")
+                if wishlisted then cell.wishlistStar:Show() else cell.wishlistStar:Hide() end
+
+                -- Golden glow if item is BiS or wishlisted
+                if wishlisted or IsBiSItem(item.itemID) then cell.bisGlow:Show() else cell.bisGlow:Hide() end
 
                 -- Line 1: ilvl
                 if ilvl > 0 then

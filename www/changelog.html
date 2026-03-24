@@ -129,12 +129,39 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
+    <!-- === v1.4.11 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.4.11</span>
+            <span class="release-date">March 24, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">Addon - Wishlist &amp; BiS Integration</p>
+        <ul>
+            <li><strong>Wishlist from BiS panel</strong> &mdash; right-click any item in the BiS gear/trinket grid to add it to your wishlist; golden star appears on wishlisted items</li>
+            <li><strong>BiS golden glow in Loot Tracker</strong> &mdash; items that are in your Best in Slot list or on your wishlist now have a golden glow effect in the loot grid</li>
+            <li><strong>Larger wishlist star</strong> &mdash; 22px golden star icon for better visibility on loot grid items</li>
+        </ul>
+
+        <p class="release-section">Addon - Bug Fixes</p>
+        <ul>
+            <li><strong>Fixed loot tracker not loading</strong> &mdash; resolved Lua load-order issue where filter state was defined after the UI code that referenced it</li>
+            <li><strong>Fixed filters not applying</strong> &mdash; SaveFilters function was defined after the callback that called it; moved to correct position</li>
+        </ul>
+
+        <p class="release-section">Companion App</p>
+        <ul>
+            <li><strong>Faster scraping</strong> &mdash; removed unnecessary item level resolution step (ilvl is now resolved client-side via C_TooltipInfo); ~3-5x faster updates</li>
+            <li><strong>Full data regeneration</strong> &mdash; all 13 classes, 40 specs with both Icy Veins and Wowhead sources</li>
+        </ul>
+    </div>
+
     <!-- === v1.4.10 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.4.10</span>
             <span class="release-date">March 24, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">Addon - Loot Tracker</p>
