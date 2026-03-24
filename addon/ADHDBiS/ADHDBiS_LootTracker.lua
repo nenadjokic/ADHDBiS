@@ -54,6 +54,21 @@ local FILTER_DEFAULTS = {
 local lootFilters = {}
 for k, v in pairs(FILTER_DEFAULTS) do lootFilters[k] = v end
 
+-- Sound alert options for BiS/wishlist drops
+local ALERT_SOUNDS = {
+    { id = 8960,  name = "Legendary Fanfare" },
+    { id = 31578, name = "Epic Loot Toast" },
+    { id = 8959,  name = "Raid Warning" },
+    { id = 8457,  name = "Ready Check" },
+    { id = 17316, name = "Bonus Roll" },
+    { id = 44048, name = "Azerite Armor" },
+    { id = 7270,  name = "Quest Complete" },
+    { id = 8554,  name = "Level Up" },
+    { id = 170218, name = "Keystone Complete" },
+    { id = 0,     name = "None (no sound)" },
+}
+local selectedAlertSound = 1 -- index into ALERT_SOUNDS, loaded from DB in InitDB
+
 local function SaveFilters()
     ADHDBiS_LootDB.lootFilters = {}
     for k, v in pairs(lootFilters) do
@@ -803,6 +818,10 @@ local function InitDB()
             end
         end
     end
+    -- Load saved alert sound
+    if ADHDBiS_LootDB.alertSound and ADHDBiS_LootDB.alertSound >= 1 and ADHDBiS_LootDB.alertSound <= #ALERT_SOUNDS then
+        selectedAlertSound = ADHDBiS_LootDB.alertSound
+    end
 end
 
 
@@ -1004,13 +1023,14 @@ local function RecordLootItem(itemID, itemLink, bossName, playerName)
     table.insert(session.items, entry)
     UpdateSessionLabel()
 
-    -- Sound alert for epic+ items
-    if quality >= 5 then
-        -- Legendary: epic fanfare
-        PlaySound(8960) -- SOUNDKIT.UI_LEGENDARY_LOOT_TOAST
-    elseif quality >= 4 then
-        -- Epic: notable sound
-        PlaySound(31578) -- SOUNDKIT.UI_EPIC_LOOT_TOAST
+    -- Sound alert for BiS or wishlisted items
+    local isBiS = IsBiSItem(itemID)
+    local isWish = IsWishlisted(itemID)
+    if isBiS or isWish then
+        local snd = ALERT_SOUNDS[selectedAlertSound]
+        if snd and snd.id > 0 then
+            PlaySound(snd.id)
+        end
     end
 
     -- Chat notification with player name, ilvl and track
@@ -1019,7 +1039,9 @@ local function RecordLootItem(itemID, itemLink, bossName, playerName)
     local ilvlStr = (ilvl and ilvl > 0) and (" |cFFFFFFFF(" .. ilvl .. ")|r") or ""
     local trackStr = (track and track ~= "") and (" |cFF888888" .. track .. " " .. trackStep .. "|r") or ""
     local upgradeStr = IsUpgradeForPlayer(itemID, ilvl) and " |cFF00FF00UPGRADE!|r" or ""
-    print("|cFF9482C9ADHDBiS Loot:|r " .. displayLink .. ilvlStr .. trackStr .. upgradeStr .. " -> " .. playerStr .. " from |cFFFFD100" .. bossName .. "|r")
+    local bisStr = isBiS and " |cFFFFD100BiS!|r" or ""
+    local wishStr = (isWish and not isBiS) and " |cFFFFD100WISHLIST!|r" or ""
+    print("|cFF9482C9ADHDBiS Loot:|r " .. displayLink .. ilvlStr .. trackStr .. upgradeStr .. bisStr .. wishStr .. " -> " .. playerStr .. " from |cFFFFD100" .. bossName .. "|r")
 
     -- Refresh grid if visible
     if lootFrame:IsShown() then
@@ -1398,6 +1420,30 @@ function ns.ToggleLootTracker(subCmd)
         return
     end
 
+    -- /adhd loot sound [number]
+    if subCmd == "sound" or subCmd:find("^sound ") then
+        local num = tonumber(subCmd:match("^sound%s+(%d+)"))
+        if num then
+            if num >= 1 and num <= #ALERT_SOUNDS then
+                selectedAlertSound = num
+                ADHDBiS_LootDB.alertSound = num
+                local snd = ALERT_SOUNDS[num]
+                print("|cFF9482C9ADHDBiS:|r Alert sound set to: |cFFFFFFFF" .. snd.name .. "|r")
+                if snd.id > 0 then PlaySound(snd.id) end
+            else
+                print("|cFF9482C9ADHDBiS:|r Invalid number. Use 1-" .. #ALERT_SOUNDS)
+            end
+        else
+            print("|cFF9482C9ADHDBiS:|r Alert sound for BiS/Wishlist drops:")
+            for i, snd in ipairs(ALERT_SOUNDS) do
+                local marker = (i == selectedAlertSound) and " |cFF00FF00[selected]|r" or ""
+                print("  |cFFFFFFFF" .. i .. "|r - " .. snd.name .. marker)
+            end
+            print("Use |cFFFFFFFF/adhd loot sound <number>|r to change. Preview plays on select.")
+        end
+        return
+    end
+
     -- /adhd loot help
     if subCmd == "help" then
         print("|cFF9482C9ADHDBiS Loot Tracker|r commands:")
@@ -1408,6 +1454,7 @@ function ns.ToggleLootTracker(subCmd)
         print("  |cFFFFFFFF/adhd loot stop|r - Pause tracking")
         print("  |cFFFFFFFF/adhd loot summary|r - Print session summary to chat")
         print("  |cFFFFFFFF/adhd loot wishlist|r - Show wishlisted items")
+        print("  |cFFFFFFFF/adhd loot sound|r - Change alert sound for BiS/wishlist drops")
         print("  |cFFFFFFFF/adhd loot help|r - Show this help")
         print("  |cFF888888Grid: Right-click = Wishlist | Shift+Click = Preview | Ctrl+Click = Chat|r")
         return

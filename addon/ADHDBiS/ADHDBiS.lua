@@ -1236,7 +1236,7 @@ local function RenderEnchantsGems()
                 cell.icon:SetAlpha(0.35)
                 cell.icon:SetDesaturated(true)
             else
-                cell.borderTex:SetColorTexture(0.8, 0, 0, 1)
+                cell.borderTex:SetColorTexture(0.4, 0.2, 0.6, 0.8)
                 cell.icon:SetAlpha(1)
                 cell.icon:SetDesaturated(false)
             end
@@ -1282,7 +1282,7 @@ local function RenderEnchantsGems()
                 cell.icon:SetAlpha(0.35)
                 cell.icon:SetDesaturated(true)
             else
-                cell.borderTex:SetColorTexture(0.8, 0, 0, 1)
+                cell.borderTex:SetColorTexture(0.4, 0.2, 0.6, 0.8)
                 cell.icon:SetAlpha(1)
                 cell.icon:SetDesaturated(false)
             end

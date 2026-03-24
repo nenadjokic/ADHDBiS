@@ -31,6 +31,7 @@ All-in-one BiS gear tracker, loot tracker, and raid companion addon for WoW: Mid
 | `/adhd loot` | Toggle Loot Tracker |
 | `/adhd loot new` | New loot session |
 | `/adhd loot wishlist` | Show wishlisted items |
+| `/adhd loot sound` | Change BiS/wishlist alert sound |
 | `/adhd loot help` | All loot commands |
 | `/adhd minimap hide/show/reset` | Control minimap button |
 | `/adhd version` | Show addon version |
