@@ -1823,6 +1823,24 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             end
         end
 
+        -- Check for new addon version
+        if ADHDBiS_Data and ADHDBiS_Data.latestAddonVersion then
+            local currentVer = C_AddOns.GetAddOnMetadata("ADHDBiS", "Version") or "0"
+            local latestVer = ADHDBiS_Data.latestAddonVersion
+            if latestVer ~= "" and currentVer ~= latestVer then
+                -- Simple string comparison works for our X.Y.Z format when lengths match
+                -- For safety, compare numerically
+                local function verNum(v)
+                    local major, minor, patch = v:match("(%d+)%.(%d+)%.(%d+)")
+                    if not major then return 0 end
+                    return tonumber(major) * 10000 + tonumber(minor) * 100 + tonumber(patch)
+                end
+                if verNum(latestVer) > verNum(currentVer) then
+                    print("|cFF9482C9ADHDBiS:|r New version |cFF00FF00v" .. latestVer .. "|r available! You have v" .. currentVer .. ". Download from CurseForge or GitHub.")
+                end
+            end
+        end
+
         if mainFrame:IsShown() then
             ns.OnResize()
             ns.RefreshContent()
