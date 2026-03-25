@@ -75,6 +75,7 @@ func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, add
 
 	sb.WriteString("ADHDBiS_Data = {\n")
 	sb.WriteString(fmt.Sprintf("    version = \"%s\",\n", time.Now().Format("2006-01-02")))
+	sb.WriteString(fmt.Sprintf("    generatedAt = \"%s\",\n", time.Now().UTC().Format("2006-01-02 15:04:05")))
 	sb.WriteString(fmt.Sprintf("    source = \"%s\",\n", luaEscape(source)))
 	if latestVer != "" {
 		sb.WriteString(fmt.Sprintf("    latestAddonVersion = \"%s\",\n", luaEscape(latestVer)))
@@ -89,6 +90,14 @@ func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, add
 
 			for sourceName, data := range sources {
 				sb.WriteString(fmt.Sprintf("                [\"%s\"] = {\n", luaEscape(sourceName)))
+
+				// Timestamps
+				if data.ScrapedAt != "" {
+					sb.WriteString(fmt.Sprintf("                    scrapedAt = \"%s\",\n", luaEscape(data.ScrapedAt)))
+				}
+				if data.SourceLastModified != "" {
+					sb.WriteString(fmt.Sprintf("                    sourceLastModified = \"%s\",\n", luaEscape(data.SourceLastModified)))
+				}
 
 				// Gear
 				sb.WriteString("                    gear = {\n")

@@ -40,6 +40,7 @@ local selectedSessionIndex = 1
 local lootGridCells = {}
 local lootSectionHeaders = {}
 local isTracking = false
+local debugMode = false -- toggle with /adhd loot debug toggle
 local pendingInstanceEntry = nil -- set during popup to defer session creation
 
 -- Filter state (initialized from DB in InitDB, defaults here)
@@ -50,6 +51,9 @@ local FILTER_DEFAULTS = {
     consumable = false,
     other = false,
     epicOnly = false,
+    bindSoulbound = true,
+    bindWarbound = true,
+    bindBoe = true,
 }
 local lootFilters = {}
 for k, v in pairs(FILTER_DEFAULTS) do lootFilters[k] = v end
@@ -163,7 +167,7 @@ filterTxt:SetText("|cFFAAAAAAFilter|r")
 
 -- Filter dropdown panel
 local filterDropdown = CreateFrame("Frame", "ADHDBiSLootFilterDropdown", lootFrame, "BackdropTemplate")
-filterDropdown:SetSize(140, 142)
+filterDropdown:SetSize(145, 210)
 filterDropdown:SetPoint("TOPRIGHT", filterBtn, "BOTTOMRIGHT", 0, -2)
 filterDropdown:SetFrameStrata("DIALOG")
 filterDropdown:SetBackdrop({
@@ -179,26 +183,26 @@ filterDropdown:EnableMouse(true)
 
 -- Filter options definition: {key, label, color}
 local FILTER_OPTIONS = {
-    { key = "gear",       label = "Gear",        color = "|cFF00BBFF" },
-    { key = "mount",      label = "Mounts",      color = "|cFFFF8800" },
-    { key = "recipe",     label = "Recipes",      color = "|cFF00DD00" },
-    { key = "consumable", label = "Consumables",  color = "|cFFBBBBBB" },
-    { key = "other",      label = "Other",        color = "|cFF888888" },
-    { key = "epicOnly",   label = "Epic+ Only",   color = "|cFFA335EE" },
+    { key = "gear",          label = "Gear",         color = "|cFF00BBFF" },
+    { key = "mount",         label = "Mounts",       color = "|cFFFF8800" },
+    { key = "recipe",        label = "Recipes",      color = "|cFF00DD00" },
+    { key = "consumable",    label = "Consumables",  color = "|cFFBBBBBB" },
+    { key = "other",         label = "Other",        color = "|cFF888888" },
+    { key = "epicOnly",      label = "Epic+ Only",   color = "|cFFA335EE", separator = true },
+    { key = "bindSoulbound", label = "Soulbound",    color = "|cFFFF4444", separator = true },
+    { key = "bindWarbound",  label = "Warbound",     color = "|cFF00CCFF" },
+    { key = "bindBoe",       label = "Bind on Equip", color = "|cFF00DD00" },
 }
 
 local filterCheckboxes = {}
 
 local function UpdateFilterButtonText()
-    -- Count active category filters (excluding epicOnly)
-    local activeCount = 0
-    local totalCats = 5
-    for _, opt in ipairs(FILTER_OPTIONS) do
-        if opt.key ~= "epicOnly" and lootFilters[opt.key] then
-            activeCount = activeCount + 1
-        end
+    -- Check if any filter deviates from default
+    local isFiltered = false
+    for k, v in pairs(FILTER_DEFAULTS) do
+        if lootFilters[k] ~= v then isFiltered = true break end
     end
-    if activeCount == totalCats and not lootFilters.epicOnly then
+    if not isFiltered then
         filterTxt:SetText("|cFFAAAAAAFilter|r")
         filterBg:SetColorTexture(0.2, 0.2, 0.3, 0.7)
     else
@@ -226,8 +230,8 @@ for i, opt in ipairs(FILTER_OPTIONS) do
     label:SetPoint("LEFT", check, "RIGHT", 2, 0)
     label:SetText(opt.color .. opt.label .. "|r")
 
-    -- Add separator line before Epic+ Only
-    if opt.key == "epicOnly" then
+    -- Add separator line before sections
+    if opt.separator then
         local sep = filterDropdown:CreateTexture(nil, "ARTWORK")
         sep:SetHeight(1)
         sep:SetPoint("TOPLEFT", filterDropdown, "TOPLEFT", 6, -3 - (i - 1) * 22 + 3)
@@ -464,6 +468,8 @@ local EQUIP_LOC_TO_SLOT = {
 
 local function IsUpgradeForPlayer(itemID, itemIlvl)
     if not itemID or not itemIlvl or itemIlvl == 0 then return false end
+    -- Check if player can actually equip this item (armor type, class restriction)
+    if not IsEquippableItem(itemID) then return false end
     local _, _, _, equipLoc = GetItemInfoInstant(itemID)
     if not equipLoc or equipLoc == "" then return false end
     local slotID = EQUIP_LOC_TO_SLOT[equipLoc]
@@ -595,6 +601,14 @@ local function GetLootGridCell(index)
     playerLabel:SetWordWrap(false)
     cell.playerLabel = playerLabel
 
+    -- Bind type indicator (small colored dot at bottom-right of icon)
+    local bindDot = cell:CreateTexture(nil, "OVERLAY")
+    bindDot:SetSize(10, 10)
+    bindDot:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 2, -2)
+    bindDot:SetColorTexture(1, 1, 1, 1)
+    bindDot:Hide()
+    cell.bindDot = bindDot
+
     -- Highlight
     local highlight = cell:CreateTexture(nil, "HIGHLIGHT")
     highlight:SetAllPoints(borderTex)
@@ -612,6 +626,11 @@ local function GetLootGridCell(index)
         end
         if self.isWishlisted then
             GameTooltip:AddLine("|cFFFFD100Wishlisted|r", 1, 0.82, 0)
+        end
+        if self.bindType == "warbound" then
+            GameTooltip:AddLine("|cFF00CCFFWarbound (Account-Bound)|r", 0, 0.8, 1)
+        elseif self.bindType == "boe" then
+            GameTooltip:AddLine("|cFF00DD00Binds when Equipped|r", 0, 0.87, 0)
         end
         GameTooltip:AddLine(" ")
         GameTooltip:AddLine("|cFF888888Shift+Click: Preview | Ctrl+Click: Chat | Right+Click: Wishlist|r", 0.5, 0.5, 0.5, true)
@@ -661,6 +680,8 @@ local function HideAllLootGridCells()
         cell.storedLink = nil
         cell.isUpgrade = nil
         cell.isWishlisted = nil
+        cell.bindType = nil
+        if cell.bindDot then cell.bindDot:Hide() end
     end
 end
 
@@ -695,6 +716,36 @@ end
 -- ============================================================
 -- ITEM HELPERS
 -- ============================================================
+
+-- Detect bind type from item link tooltip
+-- Returns: "soulbound", "warbound", "boe", or "unknown"
+local function GetItemBindType(itemLink)
+    if not itemLink then return "unknown" end
+    if not C_TooltipInfo or not C_TooltipInfo.GetHyperlink then return "unknown" end
+    local tooltipData = C_TooltipInfo.GetHyperlink(itemLink)
+    if not tooltipData or not tooltipData.lines then return "unknown" end
+    -- Check first 6 lines for bind info (it's always near the top)
+    local maxLines = math.min(#tooltipData.lines, 6)
+    for i = 1, maxLines do
+        local text = tooltipData.lines[i].leftText
+        if text then
+            local lower = text:lower()
+            -- Warbound variants (account-bound in TWW)
+            if lower:find("warbound") or lower:find("account bound") or lower:find("binds to account") then
+                return "warbound"
+            end
+            -- Soulbound / Binds when picked up
+            if lower:find("soulbound") or lower:find("binds when picked up") then
+                return "soulbound"
+            end
+            -- Binds when equipped
+            if lower:find("binds when equipped") then
+                return "boe"
+            end
+        end
+    end
+    return "unknown"
+end
 
 -- Item category classification using WoW classID/subclassID
 -- classID: 0=Consumable, 2=Weapon, 3=Gem, 4=Armor, 5=Reagent,
@@ -1007,6 +1058,7 @@ local function RecordLootItem(itemID, itemLink, bossName, playerName)
     local track, trackStep = GetGearTrack(ilvl)
 
     local category = GetItemCategory(itemID)
+    local bindType = GetItemBindType(itemLink)
 
     local entry = {
         itemID = itemID,
@@ -1019,6 +1071,7 @@ local function RecordLootItem(itemID, itemLink, bossName, playerName)
         trackStep = trackStep,
         equipSlot = equipSlot,
         category = category,
+        bindType = bindType,
         timestamp = time(),
     }
 
@@ -1114,11 +1167,17 @@ function RefreshLootGrid()
             local sectionStart = cellIndex
             local visibleCount = 0
             for _, item in ipairs(bossItems) do
-                -- Apply filters: category + quality
+                -- Apply filters: category + quality + bind type
                 local cat = item.category or GetItemCategory(item.itemID)
                 local passCategory = lootFilters[cat] ~= false
                 local passQuality = not lootFilters.epicOnly or (item.quality and item.quality >= 4)
-                if passCategory and passQuality then
+                -- Bind type filter
+                local bt = item.bindType or "unknown"
+                local passBind = true
+                if bt == "soulbound" and lootFilters.bindSoulbound == false then passBind = false end
+                if bt == "warbound" and lootFilters.bindWarbound == false then passBind = false end
+                if bt == "boe" and lootFilters.bindBoe == false then passBind = false end
+                if passCategory and passQuality and passBind then
                 cellIndex = cellIndex + 1
                 local cell = GetLootGridCell(cellIndex)
 
@@ -1160,14 +1219,30 @@ function RefreshLootGrid()
                 end
 
                 -- Line 3: player name
-                local pName = item.player or ""
-                if pName == UnitName("player") then
+                local pName = item.player
+                if not pName or pName == "" then
+                    cell.playerLabel:SetText("|cFFFFD100Rolling|r")
+                elseif pName == UnitName("player") then
                     cell.playerLabel:SetText("|cFF00FF00You|r")
-                elseif pName ~= "" then
-                    cell.playerLabel:SetText(pName)
                 else
-                    cell.playerLabel:SetText("")
+                    cell.playerLabel:SetText(pName)
                 end
+
+                -- Bind type indicator dot
+                local bt = item.bindType or "unknown"
+                if bt == "warbound" then
+                    cell.bindDot:SetColorTexture(0, 0.8, 1, 0.9)  -- cyan
+                    cell.bindDot:Show()
+                elseif bt == "boe" then
+                    cell.bindDot:SetColorTexture(0, 0.87, 0, 0.9) -- green
+                    cell.bindDot:Show()
+                elseif bt == "soulbound" then
+                    cell.bindDot:SetColorTexture(1, 0.27, 0.27, 0.9) -- red
+                    cell.bindDot:Show()
+                else
+                    cell.bindDot:Hide()
+                end
+                cell.bindType = bt
 
                 -- Store link for accurate tooltip
                 cell.storedLink = item.itemLink
@@ -1214,6 +1289,7 @@ local lootEventFrame = CreateFrame("Frame")
 -- Track the last boss that was killed
 local lastEncounterName = nil
 local lastEncounterTime = 0
+local lastLootWindowTime = 0 -- when a loot window (NPC corpse/chest) was last opened
 
 local function OnEvent(self, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
@@ -1259,16 +1335,81 @@ local function OnEvent(self, event, ...)
         currentEncounter = nil
         UpdateStatus()
 
+    elseif event == "LOOT_OPENED" then
+        -- Loot window opened on an NPC/chest - mark as valid loot source
+        lastLootWindowTime = time()
+
+    elseif event == "CHALLENGE_MODE_COMPLETED" then
+        -- M+ completed - treat as boss kill for loot tracking (chest loot)
+        lastEncounterName = lastEncounterName or "M+ Chest"
+        lastEncounterTime = time()
+
+    elseif event == "ENCOUNTER_LOOT_RECEIVED" then
+        -- Boss loot with correct player name - record directly
+        if not isTracking then return end
+        local encounterID, itemID, itemLink, quantity, playerName, className = ...
+        if debugMode then
+            if not ADHDBiS_LootDB.debugLog then ADHDBiS_LootDB.debugLog = {} end
+            table.insert(ADHDBiS_LootDB.debugLog, {
+                t = date("%H:%M:%S"), event = "ELR",
+                enc = tostring(encounterID), id = tostring(itemID),
+                link = tostring(itemLink), player = tostring(playerName),
+                class = tostring(className), qty = tostring(quantity),
+            })
+        end
+        if not itemID or not itemLink then return end
+
+        if playerName then
+            playerName = playerName:match("^([^-]+)") or playerName
+        else
+            playerName = UnitName("player")
+        end
+
+        local _, _, quality = GetItemInfo(itemID)
+        if quality and quality < 3 then return end
+
+        local bossName = lastEncounterName or "Boss"
+
+        -- Check if item already exists (from [Loot]: roll notification) - update owner
+        if currentSession and currentSession.items then
+            for j = #currentSession.items, math.max(1, #currentSession.items - 40), -1 do
+                local existing = currentSession.items[j]
+                if not existing then break end
+                if existing.itemLink == itemLink then
+                    if existing.player ~= playerName then
+                        existing.player = playerName
+                        if lootFrame:IsShown() then RefreshLootGrid() end
+                    end
+                    return -- already tracked
+                end
+            end
+        end
+
+        RecordLootItem(itemID, itemLink, bossName, playerName)
+
     elseif event == "CHAT_MSG_LOOT" then
         if not isTracking then return end
 
-        local msg = ...
+        local msg, senderName, _, _, _, _, _, _, _, _, _, senderGUID = ...
         if not msg then return end
 
-        -- Check if the message is a secret value (12.x)
+        if debugMode then
+            if not ADHDBiS_LootDB.debugLog then ADHDBiS_LootDB.debugLog = {} end
+            local cleanMsg = msg:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|H.-|h", ""):gsub("|h", "")
+            table.insert(ADHDBiS_LootDB.debugLog, {
+                t = date("%H:%M:%S"), event = "CML",
+                msg = cleanMsg:sub(1, 120),
+                sender = tostring(senderName),
+                guid = tostring(senderGUID),
+            })
+        end
+
         if issecretvalue and issecretvalue(msg) then return end
 
-        -- Parse item link from message
+        -- Skip non-loot messages (pass/greed/need selections)
+        if msg:find("passed on:") then return end
+        if msg:find("You selected") then return end
+
         local link = msg:match("|Hitem:[^|]+|h[^|]+|h")
         if not link then return end
 
@@ -1276,33 +1417,52 @@ local function OnEvent(self, event, ...)
         if not itemID then return end
 
         local _, _, quality = GetItemInfo(itemID)
-        if quality and quality < 3 then return end -- Skip below rare
+        if quality and quality < 3 then return end
 
-        -- Parse player name: "PlayerName receives loot: [Item]" or "You receive loot: [Item]"
-        local playerName = UnitName("player")
-        local looter = msg:match("^(.+) receives? loot")
-        if looter then
-            -- Strip realm name if present
-            looter = looter:match("^([^-]+)") or looter
-            playerName = looter
+        -- Determine player name based on message format:
+        -- "[Loot]: [Item]" = item appeared in loot roll window, no owner yet
+        -- "PlayerName receives loot/item: [Item]" = item awarded to player
+        -- "You receive loot/item: [Item]" = item awarded to self
+        local playerName = nil
+        local isLootRollAppear = msg:find("^%[Loot%]:") ~= nil
+
+        if not isLootRollAppear then
+            local looter = msg:match("^(.+) receives? loot") or msg:match("^(.+) receives? item") or msg:match("^(.+) receives? bonus loot")
+            if looter and looter ~= "You" then
+                looter = looter:match("^([^-]+)") or looter
+                playerName = looter
+            elseif senderName and senderName ~= "" then
+                playerName = senderName:match("^([^-]+)") or senderName
+            end
+            if not playerName or playerName == "" then
+                playerName = UnitName("player")
+            end
         end
+        -- playerName is nil for loot roll appearances (no owner yet)
 
-        -- Determine boss
-        local bossName = "Trash"
-        if lastEncounterName and (time() - lastEncounterTime) < 60 then
-            bossName = lastEncounterName
-        end
-
-        -- Deduplicate: same item + same player within 5 seconds (handles WoW sending duplicate chat msgs)
-        if currentSession then
-            for j = #currentSession.items, math.max(1, #currentSession.items - 10), -1 do
+        -- Check if this item already exists in session
+        if currentSession and currentSession.items then
+            for j = #currentSession.items, math.max(1, #currentSession.items - 40), -1 do
                 local existing = currentSession.items[j]
-                if existing and existing.itemID == itemID
-                    and existing.player == playerName
-                    and (time() - existing.timestamp) < 5 then
-                    return -- Exact duplicate, skip
+                if not existing then break end
+                if existing.itemLink == link then
+                    if isLootRollAppear then
+                        return -- item already tracked from loot roll, skip duplicate
+                    end
+                    if playerName and existing.player ~= playerName then
+                        -- Item awarded or traded: update owner
+                        existing.player = playerName
+                        if lootFrame:IsShown() then RefreshLootGrid() end
+                    end
+                    return -- already tracked
                 end
             end
+        end
+
+        -- New item - determine boss or trash
+        local bossName = "Trash"
+        if lastEncounterName and (time() - lastEncounterTime) < 120 then
+            bossName = lastEncounterName
         end
 
         RecordLootItem(itemID, link, bossName, playerName)
@@ -1326,7 +1486,10 @@ lootEventFrame:SetScript("OnEvent", OnEvent)
 lootEventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 lootEventFrame:RegisterEvent("ENCOUNTER_START")
 lootEventFrame:RegisterEvent("ENCOUNTER_END")
+lootEventFrame:RegisterEvent("ENCOUNTER_LOOT_RECEIVED")
 lootEventFrame:RegisterEvent("CHAT_MSG_LOOT")
+lootEventFrame:RegisterEvent("LOOT_OPENED")
+lootEventFrame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
 lootEventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 
 -- ============================================================
@@ -1405,6 +1568,40 @@ function ns.ToggleLootTracker(subCmd)
                 end
             end
         end
+        return
+    end
+
+    -- /adhd loot debug toggle - enable/disable debug logging
+    if subCmd == "debug toggle" then
+        debugMode = not debugMode
+        if debugMode then
+            ADHDBiS_LootDB.debugLog = ADHDBiS_LootDB.debugLog or {}
+        end
+        print("|cFF9482C9ADHDBiS:|r Debug mode: " .. (debugMode and "|cFF00FF00ON|r" or "|cFFFF0000OFF|r"))
+        return
+    end
+
+    -- /adhd loot debug - show debug log
+    if subCmd == "debug" then
+        local log = ADHDBiS_LootDB.debugLog
+        if not log or #log == 0 then
+            print("|cFF9482C9ADHDBiS:|r Debug log is empty.")
+            return
+        end
+        print("|cFF9482C9ADHDBiS:|r --- Debug Log (" .. #log .. " entries) ---")
+        for i, entry in ipairs(log) do
+            if entry.event == "ELR" then
+                print("|cFFFF8800[" .. entry.t .. " ELR]|r enc=" .. entry.enc .. " id=" .. entry.id .. " player=" .. entry.player .. " class=" .. entry.class)
+            elseif entry.event == "CML" then
+                print("|cFF00FFFF[" .. entry.t .. " CML]|r sender=" .. entry.sender .. " msg=" .. entry.msg)
+            end
+        end
+        return
+    end
+
+    if subCmd == "debug clear" then
+        ADHDBiS_LootDB.debugLog = {}
+        print("|cFF9482C9ADHDBiS:|r Debug log cleared.")
         return
     end
 

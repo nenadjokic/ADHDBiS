@@ -722,6 +722,30 @@ versionText:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -20, 6)
 versionText:SetJustifyH("LEFT")
 versionText:SetTextColor(0.5, 0.5, 0.5, 1)
 
+local function GetSourceTimestamp()
+    -- Find sourceLastModified for current class/spec/source
+    if not ADHDBiS_Data or not ADHDBiS_Data.classes then return nil end
+    local playerClass = UnitClass("player")
+    local specIndex = GetSpecialization()
+    if not playerClass or not specIndex then return nil end
+    local _, specName = GetSpecializationInfo(specIndex)
+    if not specName then return nil end
+    local classData = ADHDBiS_Data.classes[playerClass]
+    if not classData or not classData[specName] then return nil end
+    local sourceData = classData[specName][selectedSource]
+    if not sourceData then return nil end
+    -- Parse HTTP date like "Wed, 25 Mar 2026 22:00:02 GMT" into short format
+    local lastMod = sourceData.sourceLastModified
+    if lastMod and lastMod ~= "" then
+        local day, mon, year = lastMod:match("(%d+) (%a+) (%d+)")
+        if day and mon and year then
+            return day .. " " .. mon .. " " .. year
+        end
+        return lastMod
+    end
+    return sourceData.scrapedAt and sourceData.scrapedAt:match("^([^T]+)") or nil
+end
+
 local function UpdateVersionText()
     if ADHDBiS_Data then
         local info = (ADHDBiS_Data.version or "?") .. " | " .. selectedSource
@@ -729,6 +753,10 @@ local function UpdateVersionText()
             local count = 0
             for _ in pairs(ADHDBiS_Data.classes) do count = count + 1 end
             info = count .. " classes | " .. info
+        end
+        local srcTime = GetSourceTimestamp()
+        if srcTime then
+            info = info .. " | src: " .. srcTime
         end
         versionText:SetText(info)
     else
@@ -1469,7 +1497,10 @@ local function RenderGear()
     if totalItems > 0 then
         local pct = math.floor((equippedCount / totalItems) * 100)
         local progressStr = equippedCount .. "/" .. totalItems .. " equipped (" .. pct .. "%)"
-        versionText:SetText(progressStr .. " | " .. (ADHDBiS_Data and ADHDBiS_Data.version or "?") .. " | " .. selectedSource)
+        local srcTime = GetSourceTimestamp()
+        local verInfo = progressStr .. " | " .. (ADHDBiS_Data and ADHDBiS_Data.version or "?") .. " | " .. selectedSource
+        if srcTime then verInfo = verInfo .. " | src: " .. srcTime end
+        versionText:SetText(verInfo)
     end
 
     scrollChild:SetHeight(math.max(1, totalHeight))

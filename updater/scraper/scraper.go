@@ -135,8 +135,23 @@ func WowheadURLs(classSlug string, spec ClassSpec) map[string]string {
 	}
 }
 
+// FetchResult holds the page body and metadata from an HTTP fetch.
+type FetchResult struct {
+	Body         []byte
+	LastModified string // HTTP Last-Modified header value (empty if not present)
+}
+
 // FetchPage retrieves a URL with proper headers.
 func FetchPage(url string) ([]byte, error) {
+	result, err := FetchPageWithMeta(url)
+	if err != nil {
+		return nil, err
+	}
+	return result.Body, nil
+}
+
+// FetchPageWithMeta retrieves a URL and returns body + HTTP metadata.
+func FetchPageWithMeta(url string) (*FetchResult, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -159,7 +174,10 @@ func FetchPage(url string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading body: %w", err)
 	}
-	return body, nil
+	return &FetchResult{
+		Body:         body,
+		LastModified: resp.Header.Get("Last-Modified"),
+	}, nil
 }
 
 // Delay waits the polite delay between requests.
@@ -178,6 +196,9 @@ type SpecData struct {
 	Consumables  []Consumable
 	TalentBuilds    []TalentBuild
 	TrinketRankings []TrinketRanking
+	// Timestamps
+	ScrapedAt        string // when we fetched the data (ISO 8601)
+	SourceLastModified string // HTTP Last-Modified from the source page (gear page)
 }
 
 type GearItem struct {

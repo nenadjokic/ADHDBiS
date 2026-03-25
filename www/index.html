@@ -295,7 +295,7 @@
             <div class="feature-card">
                 <span class="feature-icon">&#x1F4E6;</span>
                 <h3>Loot Tracker</h3>
-                <p>Real-time loot tracking in dungeons and raids. Drops organized by boss with item level, gear track (Hero 3/6, Myth 2/6), and player names. Filter by category: Gear, Mounts, Recipes, Consumables, or Epic+ only.</p>
+                <p>Real-time loot tracking in dungeons and raids. Items appear as soon as they enter the loot roll window, then update with the winner's name. Drops organized by boss with item level, gear track, bind type indicators (soulbound/warbound/BoE), and player names. Filter by category, quality, or bind type. Smart upgrade detection only flags items your class can actually equip.</p>
             </div>
             <div class="feature-card">
                 <span class="feature-icon">&#x2B06;</span>
@@ -378,6 +378,7 @@
                 <tr><td><span class="cmd">/adhd loot summary</span></td><td>Print full session summary to chat</td></tr>
                 <tr><td><span class="cmd">/adhd loot wishlist</span></td><td>Show all wishlisted items</td></tr>
                 <tr><td><span class="cmd">/adhd loot sound</span></td><td>Change BiS/wishlist drop alert sound (10 options)</td></tr>
+                <tr><td><span class="cmd">/adhd loot debug toggle</span></td><td>Enable/disable debug logging for troubleshooting</td></tr>
                 <tr><td><span class="cmd">/adhd loot help</span></td><td>Show all loot tracker commands</td></tr>
                 <tr><td><span class="cmd">/adhd radar</span></td><td>Toggle LootRadar (M+ upgrade scanner)</td></tr>
                 <tr><td><span class="cmd">/adhd version</span></td><td>Show current addon version</td></tr>
@@ -474,7 +475,7 @@
         </div>
 
         <p style="text-align: center; margin-top: 2rem; color: #666; font-size: 0.85rem;">
-            Version 1.5.0 &bull; Compatible with WoW: Midnight (12.x) &bull; All classes and specs supported
+            Version 1.5.1 &bull; Compatible with WoW: Midnight (12.x) &bull; All classes and specs supported
         </p>
         <p style="text-align: center; margin-top: 0.5rem;">
             <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank" class="btn btn-secondary" style="padding: 8px 20px; font-size: 0.85rem;">
@@ -518,5 +519,11 @@
 
 <script data-goatcounter="https://nenadjokic.goatcounter.com/count"
         async src="//gc.zgo.at/count.js"></script>
+<script>
+    // Tag CurseForge visitors via hash fragment
+    if (location.hash === '#ref=curseforge' && window.goatcounter) {
+        window.goatcounter.count({path: '/from-curseforge', title: 'Click from CurseForge', referrer: 'curseforge.com'});
+    }
+</script>
 </body>
 </html>

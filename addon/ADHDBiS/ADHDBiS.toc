@@ -2,7 +2,7 @@
 ## Title: ADHDBiS
 ## Notes: Best in Slot gear, enchants, gems, consumables & Loot Tracker for any WoW class
 ## Author: wowadd
-## Version: 1.5.0
+## Version: 1.5.1
 ## SavedVariables: ADHDBiSDB, ADHDBiS_LootDB, ADHDBiS_LootRadarDB
 
 ADHDBiS_Data.lua

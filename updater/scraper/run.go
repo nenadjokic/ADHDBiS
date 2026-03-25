@@ -2,6 +2,7 @@ package scraper
 
 import (
 	"io"
+	"time"
 )
 
 // ScrapeRequest defines what to scrape.
@@ -45,7 +46,10 @@ func RunScrape(req ScrapeRequest, logWriter io.Writer) *ScrapeResult {
 
 			for _, source := range req.Sources {
 				logf("=== Scraping %s %s [%s] ===\n", class.Name, spec.Name, source)
-				specData := &SpecData{Name: spec.Name}
+				specData := &SpecData{
+					Name:      spec.Name,
+					ScrapedAt: time.Now().UTC().Format(time.RFC3339),
+				}
 
 				useWowhead := source == "Wowhead"
 				var urls map[string]string
@@ -57,9 +61,17 @@ func RunScrape(req ScrapeRequest, logWriter io.Writer) *ScrapeResult {
 
 				// Gear
 				logf("  Fetching BiS gear... (%s)\n", urls["gear"])
-				gearBody, err := FetchPage(urls["gear"])
+				gearResult, err := FetchPageWithMeta(urls["gear"])
 				if err != nil {
 					logf("  Warning: %v\n", err)
+				}
+				var gearBody []byte
+				if gearResult != nil {
+					gearBody = gearResult.Body
+					if gearResult.LastModified != "" {
+						specData.SourceLastModified = gearResult.LastModified
+						logf("  Source Last-Modified: %s\n", gearResult.LastModified)
+					}
 				}
 				if gearBody != nil {
 					var raid, mythic, overall []GearItem

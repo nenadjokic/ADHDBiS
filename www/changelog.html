@@ -129,12 +129,36 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
+    <!-- === v1.5.1 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.5.1</span>
+            <span class="release-date">March 26, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">Addon &mdash; Loot Tracker Overhaul</p>
+        <ul>
+            <li><strong>Bind type detection</strong> &mdash; items now show colored dots indicating Soulbound (red), Warbound (cyan), or Bind on Equip (green), with new filter options in the Filter dropdown</li>
+            <li><strong>Accurate player names</strong> &mdash; uses ENCOUNTER_LOOT_RECEIVED event and multi-format CHAT_MSG_LOOT parsing to correctly identify who looted each item</li>
+            <li><strong>Live loot roll tracking</strong> &mdash; items appear in the grid as soon as they enter the loot roll window (shown as "Rolling"), then update with the winner's name when awarded</li>
+            <li><strong>Smart trade detection</strong> &mdash; when an item is traded between players, the owner is updated instead of creating a duplicate entry</li>
+            <li><strong>Equippable-only upgrades</strong> &mdash; UPGRADE indicator now checks if your class can actually equip the item (no more Plate/Mace upgrades for Warlocks)</li>
+            <li><strong>Debug mode</strong> &mdash; <code>/adhd loot debug toggle</code> to enable/disable diagnostic logging saved to SavedVariables</li>
+        </ul>
+
+        <p class="release-section">Companion App</p>
+        <ul>
+            <li><strong>Source timestamps</strong> &mdash; updater now captures HTTP Last-Modified header from Icy Veins/Wowhead, stores scrapedAt and sourceLastModified per spec in Lua data</li>
+            <li><strong>Info bar timestamp</strong> &mdash; addon footer shows when the source website last updated the BiS data (e.g. "src: 25 Mar 2026")</li>
+        </ul>
+    </div>
+
     <!-- === v1.5.0 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.5.0</span>
             <span class="release-date">March 25, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">Addon &mdash; Major UI Overhaul</p>
