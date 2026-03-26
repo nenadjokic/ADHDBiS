@@ -13,7 +13,7 @@ import (
 	"adhdbis-updater/scraper"
 )
 
-const CompanionVersion = "1.5"
+const CompanionVersion = "1.6"
 
 const banner = `
 ╔═══════════════════════════════════════╗

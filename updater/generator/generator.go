@@ -64,7 +64,7 @@ func writeGearItem(sb *strings.Builder, item scraper.GearItem, indent string) {
 
 // GenerateLua creates ADHDBiS_Data.lua from scraped data and writes it to the AddOns folder.
 // CompanionVersion is set by the caller (main.go)
-var CompanionVersion = "1.5"
+var CompanionVersion = "1.6"
 
 func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, addOnsPath string, source string) error {
 	var sb strings.Builder

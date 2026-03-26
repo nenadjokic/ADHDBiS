@@ -29,6 +29,7 @@ end
 -- CONSTANTS
 -- ============================================================
 
+local LATEST_COMPANION_VERSION = "1.6"  -- bump this when shipping new companion app
 local MIN_WIDTH = 380
 local MIN_HEIGHT = 350
 local ROW_HEIGHT = 18
@@ -717,9 +718,16 @@ scrollFrame:SetScrollChild(scrollChild)
 -- DATA VERSION FOOTER
 -- ============================================================
 
-local versionText = mainFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-versionText:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOMLEFT", 8, 6)
-versionText:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -20, 6)
+-- Footer frame to ensure version text renders above scrollFrame
+local footerFrame = CreateFrame("Frame", nil, mainFrame)
+footerFrame:SetHeight(20)
+footerFrame:SetPoint("BOTTOMLEFT", mainFrame, "BOTTOMLEFT", 0, 0)
+footerFrame:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", 0, 0)
+footerFrame:SetFrameLevel(mainFrame:GetFrameLevel() + 10)
+
+local versionText = footerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+versionText:SetPoint("BOTTOMLEFT", footerFrame, "BOTTOMLEFT", 8, 6)
+versionText:SetPoint("BOTTOMRIGHT", footerFrame, "BOTTOMRIGHT", -20, 6)
 versionText:SetJustifyH("LEFT")
 versionText:SetTextColor(0.5, 0.5, 0.5, 1)
 
@@ -2330,62 +2338,14 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             end
         end
 
-        -- Check if companion app was updated and data needs refresh
+        -- Check if companion app needs updating
+        -- Addon knows the latest companion version; compare with what generated the data
         if ADHDBiS_Data then
-            local db = GetDB()
-            local dataCompVer = ADHDBiS_Data.companionVersion -- nil if old companion app
-            if not dataCompVer then
-                -- Old companion app without version tracking - notify to update
-                if not db.dismissedOldCompanion then
-                    C_Timer.After(5, function()
-                        print("|cFF9482C9ADHDBiS:|r |cFFFF8800Your Companion App is outdated.|r Please download the latest version from CurseForge or GitHub to get new features.")
-                        local db2 = GetDB()
-                        db2.dismissedOldCompanion = true
-                    end)
-                end
-            elseif db.lastCompanionVersion and db.lastCompanionVersion ~= dataCompVer then
-                -- Companion app was updated - notify user
+            local dataCompVer = ADHDBiS_Data.companionVersion or "0"
+            if dataCompVer ~= LATEST_COMPANION_VERSION then
                 C_Timer.After(5, function()
-                    if not ADHDBiSCompanionPopup then
-                        local pop = CreateFrame("Frame", "ADHDBiSCompanionPopup", UIParent, "BackdropTemplate")
-                        pop:SetSize(380, 120)
-                        pop:SetPoint("CENTER", UIParent, "CENTER", 0, 150)
-                        pop:SetFrameStrata("DIALOG")
-                        pop:SetBackdrop({
-                            bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-                            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-                            tile = true, tileSize = 16, edgeSize = 16,
-                            insets = { left = 4, right = 4, top = 4, bottom = 4 },
-                        })
-                        pop:SetBackdropColor(0.06, 0.06, 0.1, 0.97)
-                        pop:SetBackdropBorderColor(0.8, 0.5, 0.1, 0.9)
-                        pop:EnableMouse(true)
-
-                        local title = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-                        title:SetPoint("TOPLEFT", 14, -12)
-                        title:SetText("|cFFFFD100ADHDBiS Companion App Updated|r")
-
-                        local body = pop:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-                        body:SetPoint("TOPLEFT", 14, -36)
-                        body:SetPoint("TOPRIGHT", -14, -36)
-                        body:SetJustifyH("LEFT")
-                        body:SetWordWrap(true)
-                        body:SetText("A new Companion App (v" .. dataCompVer .. ") generated your BiS data.\n|cFFFF8800Please download the latest Companion App|r from CurseForge or GitHub to keep your data up to date.")
-
-                        local okBtn = CreateFrame("Button", nil, pop, "UIPanelButtonTemplate")
-                        okBtn:SetSize(80, 24)
-                        okBtn:SetPoint("BOTTOMRIGHT", pop, "BOTTOMRIGHT", -10, 10)
-                        okBtn:SetText("OK")
-                        okBtn:SetScript("OnClick", function()
-                            pop:Hide()
-                            local db2 = GetDB()
-                            db2.lastCompanionVersion = dataCompVer
-                        end)
-                        pop:Show()
-                    end
+                    print("|cFF9482C9ADHDBiS:|r |cFFFF8800Your Companion App (v" .. dataCompVer .. ") is outdated.|r Latest is v" .. LATEST_COMPANION_VERSION .. ". Download from CurseForge or GitHub, then re-run the updater.")
                 end)
-            else
-                db.lastCompanionVersion = dataCompVer
             end
         end
 
@@ -2661,7 +2621,11 @@ optClose:SetHighlightTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Highli
 optClose:SetScript("OnClick", function() optPanel:Hide() end)
 
 -- Close on outside click
-optPanel:SetScript("OnShow", function(self) self:RegisterEvent("GLOBAL_MOUSE_DOWN") end)
+optPanel:SetScript("OnShow", function(self)
+    self:RegisterEvent("GLOBAL_MOUSE_DOWN")
+    -- Refresh all toggle states when panel opens
+    if lootTrackToggle and lootTrackToggle.UpdateStatus then lootTrackToggle.UpdateStatus() end
+end)
 optPanel:SetScript("OnHide", function(self) self:UnregisterEvent("GLOBAL_MOUSE_DOWN") end)
 optPanel:SetScript("OnEvent", function(self, event)
     if event == "GLOBAL_MOUSE_DOWN" and not self:IsMouseOver() then
@@ -2753,10 +2717,16 @@ y = y - 4
 y = OptHeader(optPanel, "Loot Tracker", y)
 OptButton(optPanel, "New Loot Session", y, function() SlashCmdList["ADHDBIS"]("loot new") end)
 _, y = nil, y - (OPT_BTN_HEIGHT + 3)
-OptButton(optPanel, "Start Tracking", y, function() SlashCmdList["ADHDBIS"]("loot start") end)
-_, y = nil, y - (OPT_BTN_HEIGHT + 3)
-OptButton(optPanel, "Stop Tracking", y, function() SlashCmdList["ADHDBIS"]("loot stop") end)
-_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+local lootTrackToggle
+lootTrackToggle, y = OptToggle(optPanel, "Loot Tracking", y,
+    function() return ns.IsLootTracking and ns.IsLootTracking() end,
+    function()
+        if ns.IsLootTracking and ns.IsLootTracking() then
+            SlashCmdList["ADHDBIS"]("loot stop")
+        else
+            SlashCmdList["ADHDBIS"]("loot start")
+        end
+    end)
 OptButton(optPanel, "Loot Summary (to chat)", y, function() SlashCmdList["ADHDBIS"]("loot summary") end)
 _, y = nil, y - (OPT_BTN_HEIGHT + 3)
 OptButton(optPanel, "Show Wishlist", y, function() SlashCmdList["ADHDBIS"]("loot wishlist") end)

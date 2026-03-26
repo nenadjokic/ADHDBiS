@@ -129,12 +129,40 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
+    <!-- === v1.5.5 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.5.5</span>
+            <span class="release-date">March 26, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">Bug Fixes</p>
+        <ul>
+            <li><strong>Fixed duplicate loot items</strong> &mdash; CML and ELR events now dedup by itemID+playerName instead of itemLink, preventing double entries when both events fire for the same drop</li>
+            <li><strong>Fixed session label after /reload</strong> &mdash; Session label now updates after session is restored from saved data, showing correct session name instead of "No sessions"</li>
+            <li><strong>Fixed Clear button</strong> &mdash; Clearing sessions now properly resets the session label and shows "No sessions" message</li>
+            <li><strong>Fixed BiS footer visibility</strong> &mdash; Version/source info footer now renders in a dedicated frame above the scroll area so it's always visible</li>
+        </ul>
+
+        <p class="release-section">Improvements</p>
+        <ul>
+            <li><strong>Loot Tracking toggle</strong> &mdash; Options panel now shows a single ON/OFF toggle instead of separate Start/Stop buttons, with real-time state refresh</li>
+            <li><strong>Source update date</strong> &mdash; BiS footer now shows when the guide was last updated on Icy Veins or Wowhead (parsed from JSON-LD structured data)</li>
+            <li><strong>Companion version check</strong> &mdash; Addon now has a hardcoded latest companion version and warns on login if your companion app is outdated</li>
+        </ul>
+
+        <p class="release-section">Companion App v1.6</p>
+        <ul>
+            <li><strong>Source date parsing</strong> &mdash; Extracts dateModified from JSON-LD on Icy Veins and Wowhead pages, stored in Data file for addon footer display</li>
+        </ul>
+    </div>
+
     <!-- === v1.5.4 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.5.4</span>
             <span class="release-date">March 26, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">Companion App</p>

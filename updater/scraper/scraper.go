@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"time"
 )
 
@@ -174,10 +175,34 @@ func FetchPageWithMeta(url string) (*FetchResult, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading body: %w", err)
 	}
+	lastMod := resp.Header.Get("Last-Modified")
+	// Fallback: parse dateModified from JSON-LD structured data in HTML
+	if lastMod == "" {
+		lastMod = extractDateModified(body)
+	}
 	return &FetchResult{
 		Body:         body,
-		LastModified: resp.Header.Get("Last-Modified"),
+		LastModified: lastMod,
 	}, nil
+}
+
+// dateModifiedRe matches "dateModified":"2026-03-16T18:35:00+00:00" in JSON-LD
+var dateModifiedRe = regexp.MustCompile(`"dateModified"\s*:\s*"([^"]+)"`)
+
+// extractDateModified parses dateModified from JSON-LD in HTML and returns a human-readable date.
+func extractDateModified(html []byte) string {
+	m := dateModifiedRe.FindSubmatch(html)
+	if m == nil {
+		return ""
+	}
+	raw := string(m[1])
+	// Try parsing as RFC3339 / ISO 8601
+	for _, layout := range []string{time.RFC3339, "2006-01-02T15:04:05-07:00", "2006-01-02"} {
+		if t, err := time.Parse(layout, raw); err == nil {
+			return t.UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT")
+		}
+	}
+	return raw // return raw string if we can't parse it
 }
 
 // Delay waits the polite delay between requests.

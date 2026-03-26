@@ -459,6 +459,9 @@ clearBtn:SetScript("OnClick", function()
     currentEncounter = nil
     lastEncounterName = nil
     lastEncounterTime = 0
+    collapsedBosses = {}
+    HideAllLootGridCells()
+    HideAllLootHeaders()
     UpdateSessionLabel()
     UpdateStatus()
     RefreshLootGrid()
@@ -1363,10 +1366,14 @@ function RefreshLootGrid()
     if not currentSession or not currentSession.items or #currentSession.items == 0 then
         -- Show empty message
         local hdr = GetLootSectionHeader(1)
-        hdr.text:SetText("|cFF888888No loot recorded yet. Enter a raid or dungeon to start tracking.|r")
+        local emptyMsg = not currentSession
+            and "|cFF888888No sessions. Enter a raid or dungeon to start tracking.|r"
+            or "|cFF888888No loot recorded yet. Enter a raid or dungeon to start tracking.|r"
+        hdr.text:SetText(emptyMsg)
         hdr:SetPoint("TOPLEFT", lootScrollChild, "TOPLEFT", 0, 0)
         hdr:SetPoint("RIGHT", lootScrollChild, "RIGHT", 0, 0)
         lootScrollChild:SetHeight(20)
+        lootScrollFrame:SetVerticalScroll(0)
         UpdateStatus()
         return
     end
@@ -1563,7 +1570,6 @@ local function OnEvent(self, event, ...)
             lootFrame:SetSize(db.lootWindowWidth, db.lootWindowHeight or 400)
         end
 
-        UpdateSessionLabel()
         UpdateFilterButtonText()
 
         -- Check if we're in a raid or dungeon instance
@@ -1578,6 +1584,8 @@ local function OnEvent(self, event, ...)
             selectedSessionIndex = 1
         end
 
+        -- Update labels AFTER session is restored so they reflect actual state
+        UpdateSessionLabel()
         UpdateStatus()
 
     elseif event == "ENCOUNTER_START" then
@@ -1633,17 +1641,18 @@ local function OnEvent(self, event, ...)
         if currentSession and currentSession.items then
             for j = 1, #currentSession.items do
                 local existing = currentSession.items[j]
-                if existing and existing.itemLink == itemLink and not existing.player then
+                if existing and existing.itemID == itemID and not existing.player then
                     existing.player = playerName
                     if lootFrame:IsShown() then RefreshLootGrid() end
                     return
                 end
             end
-            -- No unassigned found, check for exact match to avoid recording twice
+            -- No unassigned found, check for match by itemID+player to avoid recording twice
+            -- (itemLink strings can differ between CML and ELR for the same drop)
             for j = #currentSession.items, math.max(1, #currentSession.items - 40), -1 do
                 local existing = currentSession.items[j]
                 if not existing then break end
-                if existing.itemLink == itemLink and existing.player == playerName then
+                if existing.itemID == itemID and existing.player == playerName then
                     return -- already tracked
                 end
             end
@@ -1744,16 +1753,18 @@ local function OnEvent(self, event, ...)
                         return
                     end
                 end
-                -- No unassigned entry found - try updating any entry with same link (trade scenario)
+                -- No unassigned entry found - check by itemID+player to catch CML/ELR duplicates
+                -- (itemLink strings can differ between the two events for the same drop)
                 for j = #currentSession.items, math.max(1, #currentSession.items - 40), -1 do
                     local existing = currentSession.items[j]
                     if not existing then break end
-                    if existing.itemLink == link and existing.player ~= playerName then
+                    if existing.itemID == itemID and existing.player ~= playerName then
+                        -- Trade scenario: update owner
                         existing.player = playerName
                         if lootFrame:IsShown() then RefreshLootGrid() end
                         return
                     end
-                    if existing.itemLink == link and existing.player == playerName then
+                    if existing.itemID == itemID and existing.player == playerName then
                         return -- exact duplicate, skip
                     end
                 end
@@ -1796,6 +1807,10 @@ lootEventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 -- ============================================================
 -- TOGGLE / COMMANDS (exposed to main addon via ns)
 -- ============================================================
+
+function ns.IsLootTracking()
+    return isTracking
+end
 
 function ns.ToggleLootTracker(subCmd)
     subCmd = subCmd or ""
