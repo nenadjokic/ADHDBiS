@@ -2904,15 +2904,37 @@ local function HookTooltip()
             local entries = bisLookup[itemID]
             if not entries then return end
 
-            -- Deduplicate: show each class/spec combo once
+            local showAll = IsShiftKeyDown()
+            local playerClass = UnitClass("player")
+
+            -- Deduplicate and split by player class vs others
             local seen = {}
+            local myLines = {}
+            local otherLines = {}
             for _, entry in ipairs(entries) do
                 local key = entry.class .. entry.spec .. entry.gearSource
                 if not seen[key] then
                     seen[key] = true
                     local gsLabel = entry.gearSource == "mythicplus" and "M+" or "Raid"
-                    tooltip:AddLine("|cFF9482C9BiS:|r " .. entry.spec .. " " .. entry.class .. " |cFF888888(" .. gsLabel .. ")|r", 1, 1, 1)
+                    local line = "|cFF9482C9BiS:|r " .. entry.spec .. " " .. entry.class .. " |cFF888888(" .. gsLabel .. ")|r"
+                    if entry.class == playerClass then
+                        myLines[#myLines + 1] = line
+                    else
+                        otherLines[#otherLines + 1] = line
+                    end
                 end
+            end
+            -- Player's class first (always shown)
+            for _, line in ipairs(myLines) do
+                tooltip:AddLine(line, 1, 1, 1)
+            end
+            -- Other classes: show with Shift, otherwise just count
+            if showAll then
+                for _, line in ipairs(otherLines) do
+                    tooltip:AddLine(line, 1, 1, 1)
+                end
+            elseif #otherLines > 0 then
+                tooltip:AddLine("|cFF888888+" .. #otherLines .. " other spec(s) - hold Shift|r", 0.5, 0.5, 0.5)
             end
             tooltip:Show()
         end)
