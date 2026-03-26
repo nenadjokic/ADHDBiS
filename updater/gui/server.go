@@ -65,7 +65,8 @@ func StartServer(cfg *config.Config) {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html")
-		w.Write(data)
+		html := strings.Replace(string(data), "{{COMPANION_VERSION}}", generator.CompanionVersion, 1)
+		w.Write([]byte(html))
 	})
 
 	// API: Get classes

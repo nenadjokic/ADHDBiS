@@ -2331,10 +2331,19 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         end
 
         -- Check if companion app was updated and data needs refresh
-        if ADHDBiS_Data and ADHDBiS_Data.companionVersion then
+        if ADHDBiS_Data then
             local db = GetDB()
-            local dataCompVer = ADHDBiS_Data.companionVersion
-            if db.lastCompanionVersion and db.lastCompanionVersion ~= dataCompVer then
+            local dataCompVer = ADHDBiS_Data.companionVersion -- nil if old companion app
+            if not dataCompVer then
+                -- Old companion app without version tracking - notify to update
+                if not db.dismissedOldCompanion then
+                    C_Timer.After(5, function()
+                        print("|cFF9482C9ADHDBiS:|r |cFFFF8800Your Companion App is outdated.|r Please download the latest version from CurseForge or GitHub to get new features.")
+                        local db2 = GetDB()
+                        db2.dismissedOldCompanion = true
+                    end)
+                end
+            elseif db.lastCompanionVersion and db.lastCompanionVersion ~= dataCompVer then
                 -- Companion app was updated - notify user
                 C_Timer.After(5, function()
                     if not ADHDBiSCompanionPopup then
