@@ -2420,11 +2420,11 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
 
         -- Check if companion app needs updating
         -- Addon knows the latest companion version; compare with what generated the data
-        if ADHDBiS_Data then
-            local dataCompVer = ADHDBiS_Data.companionVersion or "0"
-            if dataCompVer ~= LATEST_COMPANION_VERSION then
+        -- Only warn if data HAS a companionVersion field (old data without it = unknown, not outdated)
+        if ADHDBiS_Data and ADHDBiS_Data.companionVersion then
+            if ADHDBiS_Data.companionVersion ~= LATEST_COMPANION_VERSION then
                 C_Timer.After(5, function()
-                    print("|cFF9482C9ADHDBiS:|r |cFFFF8800Your Companion App (v" .. dataCompVer .. ") is outdated.|r Latest is v" .. LATEST_COMPANION_VERSION .. ". Download from CurseForge or GitHub, then re-run the updater.")
+                    print("|cFF9482C9ADHDBiS:|r |cFFFF8800Your Companion App (v" .. ADHDBiS_Data.companionVersion .. ") is outdated.|r Latest is v" .. LATEST_COMPANION_VERSION .. ". Download from CurseForge or GitHub, then re-run the updater.")
                 end)
             end
         end
@@ -2705,6 +2705,7 @@ optPanel:SetScript("OnShow", function(self)
     self:RegisterEvent("GLOBAL_MOUSE_DOWN")
     -- Refresh all toggle states when panel opens
     if lootTrackToggle and lootTrackToggle.UpdateStatus then lootTrackToggle.UpdateStatus() end
+    if debugToggle and debugToggle.UpdateStatus then debugToggle.UpdateStatus() end
 end)
 optPanel:SetScript("OnHide", function(self) self:UnregisterEvent("GLOBAL_MOUSE_DOWN") end)
 optPanel:SetScript("OnEvent", function(self, event)
@@ -2825,10 +2826,10 @@ _, y = nil, y - (OPT_BTN_HEIGHT + 3)
 -- Toggles section
 y = y - 4
 y = OptHeader(optPanel, "Debug / Advanced", y)
-OptToggle(optPanel, "Loot Debug Logging", y,
+local debugToggle
+debugToggle, y = OptToggle(optPanel, "Loot Debug Logging", y,
     function() return ADHDBiS_LootDB and ADHDBiS_LootDB.debugMode end,
     function() SlashCmdList["ADHDBIS"]("loot debug toggle") end)
-_, y = nil, y - (OPT_BTN_HEIGHT + 3)
 OptButton(optPanel, "Show Debug Log", y, function() SlashCmdList["ADHDBIS"]("loot debug") end)
 _, y = nil, y - (OPT_BTN_HEIGHT + 3)
 OptButton(optPanel, "Copy Debug Log", y, function() optPanel:Hide() SlashCmdList["ADHDBIS"]("loot debug copy") end)

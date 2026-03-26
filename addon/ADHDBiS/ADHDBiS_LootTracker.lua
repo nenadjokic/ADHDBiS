@@ -686,12 +686,32 @@ local EQUIP_LOC_TO_SLOT = {
     INVTYPE_HOLDABLE = 17, INVTYPE_SHIELD = 17, INVTYPE_RANGED = 16,
 }
 
+-- Player's armor type (determined once at load)
+local PLAYER_ARMOR_TYPE  -- "Cloth", "Leather", "Mail", "Plate"
+local CLASS_ARMOR = {
+    WARRIOR = "Plate", PALADIN = "Plate", DEATHKNIGHT = "Plate",
+    HUNTER = "Mail", SHAMAN = "Mail", EVOKER = "Mail",
+    ROGUE = "Leather", MONK = "Leather", DRUID = "Leather", DEMONHUNTER = "Leather",
+    MAGE = "Cloth", WARLOCK = "Cloth", PRIEST = "Cloth",
+}
+
 local function IsUpgradeForPlayer(itemID, itemIlvl)
     if not itemID or not itemIlvl or itemIlvl == 0 then return false end
     -- Check if player can actually equip this item (armor type, class restriction)
     if not IsEquippableItem(itemID) then return false end
-    local ok, _, _, equipLoc = GetItemInfoInstant(itemID)
+    local ok, _, _, equipLoc, _, itemClassID, itemSubClassID = GetItemInfoInstant(itemID)
     if not ok or not equipLoc or equipLoc == "" then return false end
+    -- Check armor type for armor items (classID 4 = Armor)
+    if itemClassID == 4 and itemSubClassID and itemSubClassID > 0 then
+        -- subClassID: 1=Cloth, 2=Leather, 3=Mail, 4=Plate (0=Generic/misc)
+        if not PLAYER_ARMOR_TYPE then
+            local _, engClass = UnitClass("player")
+            PLAYER_ARMOR_TYPE = CLASS_ARMOR[engClass] or "Cloth"
+        end
+        local ARMOR_SUBCLASS = { Cloth = 1, Leather = 2, Mail = 3, Plate = 4 }
+        local playerSubClass = ARMOR_SUBCLASS[PLAYER_ARMOR_TYPE] or 1
+        if itemSubClassID ~= playerSubClass then return false end
+    end
     local slotID = EQUIP_LOC_TO_SLOT[equipLoc]
     if not slotID then return false end
     -- Check both ring/trinket slots
@@ -853,8 +873,11 @@ local function GetLootGridCell(index)
         elseif self.bindType == "boe" then
             GameTooltip:AddLine("|cFF00DD00Binds when Equipped|r", 0, 0.87, 0)
         end
+        if self.isRolled then
+            GameTooltip:AddLine("|cFFFF8800Rolled (guild roll done)|r", 1, 0.53, 0)
+        end
         GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("|cFF888888Shift+Click: Preview | Ctrl+Click: Chat | Right+Click: Wishlist|r", 0.5, 0.5, 0.5, true)
+        GameTooltip:AddLine("|cFF888888Shift+Click: Preview | Ctrl+Click: Chat\nRight+Click: Wishlist | Alt+Click: Mark Rolled|r", 0.5, 0.5, 0.5, true)
         GameTooltip:Show()
     end)
     cell:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -869,7 +892,17 @@ local function GetLootGridCell(index)
             _, link = C_Item.GetItemInfo(self.itemID)
         end
 
-        if button == "LeftButton" and IsShiftKeyDown() then
+        if button == "LeftButton" and IsAltKeyDown() then
+            -- Alt+Click: toggle "rolled" (dimmed) state
+            if self.sessionItemIndex and currentSession and currentSession.items then
+                local entry = currentSession.items[self.sessionItemIndex]
+                if entry then
+                    entry.rolled = not entry.rolled
+                    if lootFrame:IsShown() then RefreshLootGrid() end
+                end
+            end
+            return
+        elseif button == "LeftButton" and IsShiftKeyDown() then
             if link then DressUpLink(link) end
         elseif button == "LeftButton" and IsControlKeyDown() then
             if link then ChatEdit_InsertLink(link) end
@@ -901,6 +934,8 @@ local function HideAllLootGridCells()
         cell.storedLink = nil
         cell.isUpgrade = nil
         cell.isWishlisted = nil
+        cell.isRolled = nil
+        cell.sessionItemIndex = nil
         cell.bindType = nil
         if cell.bindDot then cell.bindDot:Hide() end
     end
@@ -1378,12 +1413,13 @@ function RefreshLootGrid()
         return
     end
 
-    -- Group items by boss
+    -- Group items by boss (keep session index for Alt+Click rolled toggle)
     local bossList = currentSession.bosses or {}
     local itemsByBoss = {}
-    for _, item in ipairs(currentSession.items) do
+    for idx, item in ipairs(currentSession.items) do
         local boss = item.boss or "Trash"
         if not itemsByBoss[boss] then itemsByBoss[boss] = {} end
+        item._sessionIdx = idx
         table.insert(itemsByBoss[boss], item)
     end
 
@@ -1443,6 +1479,17 @@ function RefreshLootGrid()
                 local cell = GetLootGridCell(cellIndex)
 
                 cell.icon:SetTexture(GetItemIcon(item.itemID))
+                cell.sessionItemIndex = item._sessionIdx
+                cell.isRolled = item.rolled
+
+                -- Rolled state: dim the item
+                if item.rolled then
+                    cell.icon:SetAlpha(0.3)
+                    cell.icon:SetDesaturated(true)
+                else
+                    cell.icon:SetAlpha(1)
+                    cell.icon:SetDesaturated(false)
+                end
 
                 -- Quality border color
                 local qColor = QUALITY_COLORS[item.quality] or QUALITY_COLORS[3]
@@ -1635,6 +1682,10 @@ local function OnEvent(self, event, ...)
         local _, _, quality = GetItemInfo(itemID)
         if quality and quality < 3 then return end
 
+        -- Skip non-gear items (tier tokens, crafting reagents, etc.)
+        local cat = GetItemCategory(itemID)
+        if cat ~= "gear" and cat ~= "mount" and cat ~= "recipe" then return end
+
         local bossName = lastEncounterName or "Boss"
 
         -- Check if item already exists (from [Loot]: roll notification) - find first unassigned
@@ -1717,26 +1768,29 @@ local function OnEvent(self, event, ...)
         local _, _, quality = GetItemInfo(itemID)
         if quality and quality < 3 then return end
 
+        -- Skip non-gear items (tier tokens, crafting reagents, etc.)
+        local cat = GetItemCategory(itemID)
+        if cat ~= "gear" and cat ~= "mount" and cat ~= "recipe" then return end
+
         -- Determine player name based on message format:
         -- "[Loot]: [Item]" = item appeared in loot roll window, no owner yet
         -- "PlayerName receives loot/item: [Item]" = item awarded to player
         -- "You receive loot/item: [Item]" = item awarded to self
         local playerName = nil
-        local isLootRollAppear = msg:find("^%[Loot%]:%s*|") ~= nil -- [Loot]: directly followed by item link
 
-        if not isLootRollAppear then
-            local looter = msg:match("^(.+) receives? loot") or msg:match("^(.+) receives? item") or msg:match("^(.+) receives? bonus loot")
-            if looter and looter ~= "You" then
-                looter = looter:match("^([^-]+)") or looter
-                playerName = looter
-            elseif senderName and senderName ~= "" then
-                playerName = senderName:match("^([^-]+)") or senderName
-            end
-            if not playerName or playerName == "" then
-                playerName = UnitName("player")
-            end
+        -- Check for "receives loot/item" first (most reliable)
+        local looter = msg:match("^(.+) receives? loot") or msg:match("^(.+) receives? item") or msg:match("^(.+) receives? bonus loot")
+        if looter and looter ~= "You" then
+            playerName = (looter:match("^([^-]+)") or looter)
+        elseif looter == "You" or msg:find("^You receive") then
+            playerName = UnitName("player")
+        elseif senderName and senderName ~= "" and senderGUID and senderGUID ~= "" then
+            -- Has a real sender (not a system message) - use sender name
+            playerName = senderName:match("^([^-]+)") or senderName
         end
-        -- playerName is nil for loot roll appearances (no owner yet)
+        -- If playerName is still nil, this is a roll window item (no owner yet)
+        -- [Loot]: messages and any other system messages without a sender
+        local isLootRollAppear = (playerName == nil)
 
         -- Duplicate / assignment logic
         if currentSession and currentSession.items then

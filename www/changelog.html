@@ -129,12 +129,34 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
+    <!-- === v1.5.7 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.5.7</span>
+            <span class="release-date">March 26, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">New Features</p>
+        <ul>
+            <li><strong>Alt+Click: Mark as Rolled</strong> &mdash; Alt+Click any item in Loot Tracker to dim it as "rolled" for guild roll tracking. Alt+Click again to unmark. State persists in session data</li>
+        </ul>
+
+        <p class="release-section">Bug Fixes</p>
+        <ul>
+            <li><strong>Fixed Rolling label</strong> &mdash; Items in the loot roll window now correctly show "Rolling" instead of the player's own name</li>
+            <li><strong>Fixed UPGRADE for wrong armor type</strong> &mdash; Plate items no longer show "UPGRADE for you!" for Cloth/Leather/Mail wearers</li>
+            <li><strong>Fixed tier token tracking</strong> &mdash; Non-gear items (tier tokens, crafting reagents) are no longer recorded in the Loot Tracker</li>
+            <li><strong>Fixed companion version warning</strong> &mdash; No longer shows "v0 is outdated" for data generated before version tracking existed</li>
+            <li><strong>Fixed debug toggle state</strong> &mdash; Debug Logging toggle in options panel now shows correct ON/OFF state after /reload</li>
+        </ul>
+    </div>
+
     <!-- === v1.5.6 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.5.6</span>
             <span class="release-date">March 26, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">Bug Fixes</p>
