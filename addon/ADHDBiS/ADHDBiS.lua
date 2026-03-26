@@ -47,6 +47,11 @@ local LIST_COL_GAP = 4
 
 local TAB_LIST  = { "Gear", "Trinkets", "Enchants+Gems", "Consumables", "Talents", "Vault" }
 
+-- Known embellishment itemIDs (not armor - should appear in Enchants, not Gear)
+local EMBELLISHMENT_IDS = {
+    [240167] = true, -- Arcanoweave Lining
+}
+
 -- Raid difficulty ID to human-readable name
 local DIFFICULTY_NAMES = {
     [17] = "LFR",
@@ -84,11 +89,20 @@ local CLASS_ORDER = {
 }
 
 -- Slot name -> inventory slot ID for GetInventoryItemID
+-- Includes aliases for variant slot names from scraped data
 local SLOT_IDS = {
     Head = 1, Neck = 2, Shoulders = 3, Back = 15,
     Chest = 5, Wrist = 9, Hands = 10, Waist = 6,
     Legs = 7, Feet = 8, Finger1 = 11, Finger2 = 12,
     Trinket1 = 13, Trinket2 = 14, Weapon = 16, OffHand = 17,
+    -- Aliases for scraped data variations
+    ["Trinket 1"] = 13, ["Trinket 2"] = 14,
+    ["Ring 1"] = 11, ["Ring 2"] = 12,
+    ["Ring1"] = 11, ["Ring2"] = 12,
+    ["2h weapon"] = 16, ["1h weapon"] = 16,
+    ["Main Hand"] = 16, ["Off Hand"] = 17, ["Off-Hand"] = 17,
+    ["Weapon (staff)"] = 16, ["Weapon (2h)"] = 16, ["Weapon (1h)"] = 16,
+    ["Weapon (dagger)"] = 16, ["Weapon (wand)"] = 16,
 }
 
 -- Short slot labels for grid display
@@ -97,6 +111,12 @@ local SHORT_SLOT = {
     Chest = "Chest", Wrist = "Wrist", Hands = "Hands", Waist = "Waist",
     Legs = "Legs", Feet = "Feet", Finger1 = "Ring1", Finger2 = "Ring2",
     Trinket1 = "Trk1", Trinket2 = "Trk2", Weapon = "Wep", OffHand = "OH",
+    ["Trinket 1"] = "Trk1", ["Trinket 2"] = "Trk2",
+    ["Ring 1"] = "Ring1", ["Ring 2"] = "Ring2",
+    ["2h weapon"] = "2H", ["1h weapon"] = "1H",
+    ["Weapon (staff)"] = "Staff", ["Weapon (2h)"] = "2H", ["Weapon (1h)"] = "1H",
+    ["Weapon (dagger)"] = "Dag", ["Weapon (wand)"] = "Wand",
+    ["Main Hand"] = "MH", ["Off Hand"] = "OH", ["Off-Hand"] = "OH",
 }
 
 -- Trinket source lookup: find source from gear lists by itemID
@@ -196,7 +216,7 @@ local function BuildBiSLookup()
                         local gearList = sourceData.gear[gearType]
                         if gearList then
                             for _, item in ipairs(gearList) do
-                                if item.itemID then
+                                if item.itemID and not EMBELLISHMENT_IDS[item.itemID] then
                                     if not bisLookup[item.itemID] then
                                         bisLookup[item.itemID] = {}
                                     end
@@ -1013,28 +1033,43 @@ local function ScanBags()
     bagCacheDirty = false
 end
 
+-- Check if a specific itemID is equipped in a given slot, returning state
+local function CheckEquippedSlot(itemID, slotID, bisIlvl)
+    local equippedID = GetInventoryItemID("player", slotID)
+    if equippedID == itemID then
+        if bisIlvl and bisIlvl >= MIN_SANE_ILVL then
+            local equippedLink = GetInventoryItemLink("player", slotID)
+            if equippedLink then
+                local equippedIlvl = GetDetailedItemLevelInfo(equippedLink)
+                if equippedIlvl and equippedIlvl >= bisIlvl then
+                    return "equipped_bis"
+                else
+                    return "equipped_low"
+                end
+            end
+        end
+        return "equipped_bis"
+    end
+    return nil
+end
+
 -- Get the 4-state status for an item: "equipped_bis", "equipped_low", "in_bag", "missing"
 local function GetItemBiSState(itemID, slot, bisIlvl, bonusIDs)
     if not itemID then return "missing" end
 
-    -- Check equipped
+    -- Check expected slot first
     local slotID = SLOT_IDS[slot]
     if slotID then
-        local equippedID = GetInventoryItemID("player", slotID)
-        if equippedID == itemID then
-            -- Check ilvl match
-            if bisIlvl and bisIlvl >= MIN_SANE_ILVL then
-                local equippedLink = GetInventoryItemLink("player", slotID)
-                if equippedLink then
-                    local equippedIlvl = GetDetailedItemLevelInfo(equippedLink)
-                    if equippedIlvl and equippedIlvl >= bisIlvl then
-                        return "equipped_bis"  -- green checkmark
-                    else
-                        return "equipped_low"  -- yellow arrow (upgradeable)
-                    end
-                end
-            end
-            return "equipped_bis"  -- can't verify ilvl, assume OK
+        local state = CheckEquippedSlot(itemID, slotID, bisIlvl)
+        if state then return state end
+    end
+
+    -- Crafted items (e.g. embellishments) can be equipped in any armor slot
+    -- Check all equipment slots if not found in expected slot
+    for _, altSlotID in pairs(SLOT_IDS) do
+        if altSlotID ~= slotID then
+            local state = CheckEquippedSlot(itemID, altSlotID, bisIlvl)
+            if state then return state end
         end
     end
 
@@ -1380,6 +1415,15 @@ local function RenderGear()
     end
     if not gearList then return end
 
+    -- Filter out embellishments from gear list (they belong in Enchants tab)
+    local filteredGear = {}
+    for _, item in ipairs(gearList) do
+        if not EMBELLISHMENT_IDS[item.itemID] then
+            filteredGear[#filteredGear + 1] = item
+        end
+    end
+    gearList = filteredGear
+
     -- Ensure bag cache is fresh
     if bagCacheDirty then ScanBags() end
 
@@ -1639,7 +1683,10 @@ local ENCHANT_SLOT_MAP = {
 local function HasEnchantOnSlot(enchSlot, enchName)
     local slotsToCheck = {}
     local slotLower = enchSlot and enchSlot:lower() or ""
-    if slotLower == "finger1" or slotLower == "rings" or slotLower == "finger" or slotLower == "ring" then
+    if slotLower == "embellishment" then
+        -- Embellishments can be on any armor slot - scan all
+        slotsToCheck = {1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16, 17}
+    elseif slotLower == "finger1" or slotLower == "rings" or slotLower == "finger" or slotLower == "ring" then
         slotsToCheck = {11, 12}
     else
         local slotID = ENCHANT_SLOT_MAP[enchSlot] or SLOT_IDS[enchSlot]
@@ -1657,9 +1704,12 @@ local function HasEnchantOnSlot(enchSlot, enchName)
                     end
                 end
             end
-            local enchantField = link:match("|Hitem:%d+:(%d+)")
-            if enchantField and tonumber(enchantField) and tonumber(enchantField) > 0 then
-                return true
+            -- For non-embellishment slots, also check enchant field in item link
+            if slotLower ~= "embellishment" then
+                local enchantField = link:match("|Hitem:%d+:(%d+)")
+                if enchantField and tonumber(enchantField) and tonumber(enchantField) > 0 then
+                    return true
+                end
             end
         end
     end
@@ -1685,6 +1735,36 @@ local function RenderEnchantsGems()
     local specData = GetSpecData()
     if not specData then return end
 
+    -- Collect embellishments from gear lists (for old data that hasn't been regenerated)
+    local embellishmentsInEnchants = {}
+    if specData.enchants then
+        for _, e in ipairs(specData.enchants) do
+            if e.slot == "Embellishment" then embellishmentsInEnchants[e.itemID] = true end
+        end
+    end
+    local extraEnchants = {}
+    if specData.gear then
+        local seen = {}
+        for _, listName in ipairs({"overall", "raid", "mythicplus"}) do
+            local list = specData.gear[listName]
+            if list then
+                for _, item in ipairs(list) do
+                    if EMBELLISHMENT_IDS[item.itemID] and not seen[item.itemID] and not embellishmentsInEnchants[item.itemID] then
+                        seen[item.itemID] = true
+                        extraEnchants[#extraEnchants + 1] = { slot = "Embellishment", itemID = item.itemID, name = item.name }
+                    end
+                end
+            end
+        end
+    end
+
+    -- Merge extra embellishments into enchants for display
+    local enchants = {}
+    if specData.enchants then
+        for _, e in ipairs(specData.enchants) do enchants[#enchants + 1] = e end
+    end
+    for _, e in ipairs(extraEnchants) do enchants[#enchants + 1] = e end
+
     local cellIndex = 0
     local headerIndex = 0
     local yOffset = 0
@@ -1693,7 +1773,7 @@ local function RenderEnchantsGems()
     if cols < 1 then cols = 1 end
 
     -- Enchants section
-    if specData.enchants and #specData.enchants > 0 then
+    if #enchants > 0 then
         headerIndex = headerIndex + 1
         local hdr = GetSectionHeader(headerIndex)
         hdr.text:SetText("|cFFFFD100-- Enchants --|r")
@@ -1702,7 +1782,7 @@ local function RenderEnchantsGems()
         yOffset = yOffset + 20
 
         local sectionStart = cellIndex
-        for _, ench in ipairs(specData.enchants) do
+        for _, ench in ipairs(enchants) do
             cellIndex = cellIndex + 1
             local cell = GetGridCell(cellIndex)
             cell.icon:SetTexture(GetItemIcon(ench.itemID))

@@ -62,6 +62,47 @@ func writeGearItem(sb *strings.Builder, item scraper.GearItem, indent string) {
 	sb.WriteString(" },\n")
 }
 
+// Known embellishment itemIDs - these are optional reagents, not armor pieces.
+// They should be listed in the enchants section, not in gear.
+var embellishmentIDs = map[int]bool{
+	240167: true, // Arcanoweave Lining
+}
+
+// isEmbellishment checks if a gear item is actually an embellishment.
+func isEmbellishment(item scraper.GearItem) bool {
+	return embellishmentIDs[item.ItemID]
+}
+
+// filterEmbellishments removes embellishments from a gear list and returns them separately.
+func filterEmbellishments(gear []scraper.GearItem) (filtered []scraper.GearItem, embellishments []scraper.GearItem) {
+	for _, item := range gear {
+		if isEmbellishment(item) {
+			embellishments = append(embellishments, item)
+		} else {
+			filtered = append(filtered, item)
+		}
+	}
+	return
+}
+
+// embellishmentsToEnchants converts embellishment gear items to enchant entries.
+func embellishmentsToEnchants(embellishments []scraper.GearItem) []scraper.EnchantItem {
+	seen := map[int]bool{}
+	var result []scraper.EnchantItem
+	for _, item := range embellishments {
+		if seen[item.ItemID] {
+			continue // only add each embellishment once
+		}
+		seen[item.ItemID] = true
+		result = append(result, scraper.EnchantItem{
+			Slot:   "Embellishment",
+			ItemID: item.ItemID,
+			Name:   item.Name,
+		})
+	}
+	return result
+}
+
 // GenerateLua creates ADHDBiS_Data.lua from scraped data and writes it to the AddOns folder.
 // CompanionVersion is set by the caller (main.go)
 var CompanionVersion = "1.6"
@@ -103,35 +144,46 @@ func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, add
 					sb.WriteString(fmt.Sprintf("                    sourceLastModified = \"%s\",\n", luaEscape(data.SourceLastModified)))
 				}
 
-				// Gear
+				// Filter embellishments from gear lists -> move to enchants
+				var allEmbellishments []scraper.GearItem
+				overallGear, emb := filterEmbellishments(data.OverallGear)
+				allEmbellishments = append(allEmbellishments, emb...)
+				raidGear, emb := filterEmbellishments(data.RaidGear)
+				allEmbellishments = append(allEmbellishments, emb...)
+				mythicGear, emb := filterEmbellishments(data.MythicGear)
+				allEmbellishments = append(allEmbellishments, emb...)
+
+				// Gear (without embellishments)
 				sb.WriteString("                    gear = {\n")
-				if len(data.OverallGear) > 0 {
+				if len(overallGear) > 0 {
 					sb.WriteString("                        overall = {\n")
-					for _, item := range data.OverallGear {
+					for _, item := range overallGear {
 						writeGearItem(&sb, item, "                            ")
 					}
 					sb.WriteString("                        },\n")
 				}
-				if len(data.RaidGear) > 0 {
+				if len(raidGear) > 0 {
 					sb.WriteString("                        raid = {\n")
-					for _, item := range data.RaidGear {
+					for _, item := range raidGear {
 						writeGearItem(&sb, item, "                            ")
 					}
 					sb.WriteString("                        },\n")
 				}
-				if len(data.MythicGear) > 0 {
+				if len(mythicGear) > 0 {
 					sb.WriteString("                        mythicplus = {\n")
-					for _, item := range data.MythicGear {
+					for _, item := range mythicGear {
 						writeGearItem(&sb, item, "                            ")
 					}
 					sb.WriteString("                        },\n")
 				}
 				sb.WriteString("                    },\n")
 
-				// Enchants
-				if len(data.Enchants) > 0 {
+				// Enchants (including embellishments moved from gear)
+				embEnchants := embellishmentsToEnchants(allEmbellishments)
+				allEnchants := append(data.Enchants, embEnchants...)
+				if len(allEnchants) > 0 {
 					sb.WriteString("                    enchants = {\n")
-					for _, ench := range data.Enchants {
+					for _, ench := range allEnchants {
 						sb.WriteString(fmt.Sprintf("                        { slot = \"%s\", itemID = %d, name = \"%s\" },\n",
 							luaEscape(ench.Slot), ench.ItemID, luaEscape(ench.Name)))
 					}

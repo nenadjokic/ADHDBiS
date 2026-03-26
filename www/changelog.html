@@ -129,12 +129,37 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
+    <!-- === v1.5.6 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.5.6</span>
+            <span class="release-date">March 26, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">Bug Fixes</p>
+        <ul>
+            <li><strong>Fixed equipped item detection</strong> &mdash; Added slot name aliases for "2h weapon", "1h weapon", "Trinket 1", "Trinket 2", "Weapon (staff)" etc. Many items were showing as missing even when equipped due to mismatched slot names from scraped data</li>
+            <li><strong>All-slot fallback</strong> &mdash; If an item isn't found in its expected slot, all equipped slots are checked. Fixes dual-wield weapons, rings in either finger slot, and crafted items in any armor slot</li>
+        </ul>
+
+        <p class="release-section">Improvements</p>
+        <ul>
+            <li><strong>Embellishments moved to Enchants tab</strong> &mdash; Arcanoweave Lining and other embellishments are no longer listed as gear items. They now appear in the Enchants+Gems tab with detection across all equipped slots</li>
+            <li><strong>README redesign</strong> &mdash; New README with badges, screenshots, download table, and support buttons</li>
+        </ul>
+
+        <p class="release-section">Companion App</p>
+        <ul>
+            <li><strong>Embellishment filter in generator</strong> &mdash; Known embellishment itemIDs are automatically moved from gear lists to enchants section during data generation</li>
+        </ul>
+    </div>
+
     <!-- === v1.5.5 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.5.5</span>
             <span class="release-date">March 26, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">Bug Fixes</p>
