@@ -13,9 +13,11 @@ import (
 	"adhdbis-updater/scraper"
 )
 
+const CompanionVersion = "1.5"
+
 const banner = `
 ╔═══════════════════════════════════════╗
-║       ADHDBiS Updater v1.3           ║
+║     ADHDBiS Companion App v1.5       ║
 ║    BiS Data for any WoW Class        ║
 ╚═══════════════════════════════════════╝
 `
@@ -44,6 +46,9 @@ func main() {
 		config.Save(&config.Config{AddOnsPath: ""})
 		fmt.Println("AddOns path cleared. You will be prompted for a new path.")
 	}
+
+	// Set companion version for generator
+	generator.CompanionVersion = CompanionVersion
 
 	if !cliMode {
 		// Default: GUI mode

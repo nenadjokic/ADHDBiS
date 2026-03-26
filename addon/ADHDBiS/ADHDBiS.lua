@@ -2330,6 +2330,56 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             end
         end
 
+        -- Check if companion app was updated and data needs refresh
+        if ADHDBiS_Data and ADHDBiS_Data.companionVersion then
+            local db = GetDB()
+            local dataCompVer = ADHDBiS_Data.companionVersion
+            if db.lastCompanionVersion and db.lastCompanionVersion ~= dataCompVer then
+                -- Companion app was updated - notify user
+                C_Timer.After(5, function()
+                    if not ADHDBiSCompanionPopup then
+                        local pop = CreateFrame("Frame", "ADHDBiSCompanionPopup", UIParent, "BackdropTemplate")
+                        pop:SetSize(380, 120)
+                        pop:SetPoint("CENTER", UIParent, "CENTER", 0, 150)
+                        pop:SetFrameStrata("DIALOG")
+                        pop:SetBackdrop({
+                            bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+                            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+                            tile = true, tileSize = 16, edgeSize = 16,
+                            insets = { left = 4, right = 4, top = 4, bottom = 4 },
+                        })
+                        pop:SetBackdropColor(0.06, 0.06, 0.1, 0.97)
+                        pop:SetBackdropBorderColor(0.8, 0.5, 0.1, 0.9)
+                        pop:EnableMouse(true)
+
+                        local title = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+                        title:SetPoint("TOPLEFT", 14, -12)
+                        title:SetText("|cFFFFD100ADHDBiS Companion App Updated|r")
+
+                        local body = pop:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+                        body:SetPoint("TOPLEFT", 14, -36)
+                        body:SetPoint("TOPRIGHT", -14, -36)
+                        body:SetJustifyH("LEFT")
+                        body:SetWordWrap(true)
+                        body:SetText("A new Companion App (v" .. dataCompVer .. ") generated your BiS data.\n|cFFFF8800Please download the latest Companion App|r from CurseForge or GitHub to keep your data up to date.")
+
+                        local okBtn = CreateFrame("Button", nil, pop, "UIPanelButtonTemplate")
+                        okBtn:SetSize(80, 24)
+                        okBtn:SetPoint("BOTTOMRIGHT", pop, "BOTTOMRIGHT", -10, 10)
+                        okBtn:SetText("OK")
+                        okBtn:SetScript("OnClick", function()
+                            pop:Hide()
+                            local db2 = GetDB()
+                            db2.lastCompanionVersion = dataCompVer
+                        end)
+                        pop:Show()
+                    end
+                end)
+            else
+                db.lastCompanionVersion = dataCompVer
+            end
+        end
+
         if mainFrame:IsShown() then
             ns.OnResize()
             ns.RefreshContent()
