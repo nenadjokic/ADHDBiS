@@ -104,8 +104,9 @@ local function FindTrinketSource(itemID)
     local playerClass = UnitClass("player")
     if not playerClass or not ADHDBiS_Data.classes or not ADHDBiS_Data.classes[playerClass] then return nil end
     for specName, sources in pairs(ADHDBiS_Data.classes[playerClass]) do
+        if type(sources) ~= "table" then break end
         for sourceName, data in pairs(sources) do
-            if data.gear then
+            if type(data) == "table" and data.gear then
                 for _, listType in ipairs({"mythicplus", "raid"}) do
                     if data.gear[listType] then
                         for _, item in ipairs(data.gear[listType]) do
@@ -2549,7 +2550,7 @@ minimapBtn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
     GameTooltip:AddLine("|cFF9482C9ADHDBiS|r")
     GameTooltip:AddLine("|cFFFFFFFFLeft-click:|r Toggle BiS Panel", 1, 1, 1)
-    GameTooltip:AddLine("|cFFFFFFFFRight-click:|r Commands Menu", 1, 1, 1)
+    GameTooltip:AddLine("|cFFFFFFFFRight-click:|r Options Panel", 1, 1, 1)
     GameTooltip:AddLine("|cFFFFFFFFMiddle-click:|r Toggle LootRadar", 1, 1, 1)
     GameTooltip:AddLine("|cFF888888Shift+Drag anywhere to move|r", 0.5, 0.5, 0.5)
     GameTooltip:AddLine("|cFF888888/adhd minimap hide|r", 0.4, 0.4, 0.4)
@@ -2557,107 +2558,203 @@ minimapBtn:SetScript("OnEnter", function(self)
 end)
 minimapBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
--- Right-click menu (custom frame, NOT UIDropDownMenu)
-local mmMenu = CreateFrame("Frame", "ADHDBiSMinimapMenu", UIParent, "BackdropTemplate")
-mmMenu:SetFrameStrata("FULLSCREEN_DIALOG")
-mmMenu:SetBackdrop({
+-- ============================================================
+-- OPTIONS PANEL (right-click minimap)
+-- ============================================================
+
+local optPanel = CreateFrame("Frame", "ADHDBiSOptionsPanel", UIParent, "BackdropTemplate")
+optPanel:SetSize(260, 420)
+optPanel:SetFrameStrata("DIALOG")
+optPanel:SetBackdrop({
     bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-    tile = true, tileSize = 16, edgeSize = 12,
-    insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    tile = true, tileSize = 16, edgeSize = 16,
+    insets = { left = 4, right = 4, top = 4, bottom = 4 },
 })
-mmMenu:SetBackdropColor(0.08, 0.08, 0.12, 0.95)
-mmMenu:SetBackdropBorderColor(0.4, 0.2, 0.6, 0.9)
-mmMenu:EnableMouse(true)
-mmMenu:Hide()
+optPanel:SetBackdropColor(0.06, 0.06, 0.1, 0.97)
+optPanel:SetBackdropBorderColor(0.4, 0.2, 0.6, 0.9)
+optPanel:SetMovable(true)
+optPanel:EnableMouse(true)
+optPanel:RegisterForDrag("LeftButton")
+optPanel:SetClampedToScreen(true)
+optPanel:SetScript("OnDragStart", optPanel.StartMoving)
+optPanel:SetScript("OnDragStop", optPanel.StopMovingOrSizing)
+optPanel:Hide()
 
-mmMenu:SetScript("OnShow", function(self)
-    self:RegisterEvent("GLOBAL_MOUSE_DOWN")
-end)
-mmMenu:SetScript("OnHide", function(self)
-    self:UnregisterEvent("GLOBAL_MOUSE_DOWN")
-end)
-mmMenu:SetScript("OnEvent", function(self, event)
+-- Title bar
+local optTitleBg = optPanel:CreateTexture(nil, "ARTWORK")
+optTitleBg:SetHeight(24)
+optTitleBg:SetPoint("TOPLEFT", 4, -4)
+optTitleBg:SetPoint("TOPRIGHT", -4, -4)
+optTitleBg:SetColorTexture(0.15, 0.08, 0.25, 0.8)
+
+local optTitle = optPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+optTitle:SetPoint("TOPLEFT", 12, -8)
+optTitle:SetText("|cFF9482C9ADHDBiS|r Options")
+
+-- Close button
+local optClose = CreateFrame("Button", nil, optPanel)
+optClose:SetSize(18, 18)
+optClose:SetPoint("TOPRIGHT", -6, -6)
+optClose:SetNormalTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Up")
+optClose:SetPushedTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Down")
+optClose:SetHighlightTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Highlight", "ADD")
+optClose:SetScript("OnClick", function() optPanel:Hide() end)
+
+-- Close on outside click
+optPanel:SetScript("OnShow", function(self) self:RegisterEvent("GLOBAL_MOUSE_DOWN") end)
+optPanel:SetScript("OnHide", function(self) self:UnregisterEvent("GLOBAL_MOUSE_DOWN") end)
+optPanel:SetScript("OnEvent", function(self, event)
     if event == "GLOBAL_MOUSE_DOWN" and not self:IsMouseOver() then
         self:Hide()
     end
 end)
 
-local menuItems = {
-    { text = "|cFF9482C9ADHDBiS|r",     cmd = nil,         isHeader = true },
-    { text = "Toggle BiS Panel",         cmd = "bis" },
-    { text = "Toggle Loot Tracker",      cmd = "loot" },
-    { text = "|cFF00FF00LootRadar|r",    cmd = "radar" },
-    { text = "---",                      cmd = nil,         isSep = true },
-    { text = "New Loot Session",         cmd = "loot new" },
-    { text = "Start Tracking",           cmd = "loot start" },
-    { text = "Stop Tracking",            cmd = "loot stop" },
-    { text = "---",                      cmd = nil,         isSep = true },
-    { text = "Loot Summary",             cmd = "loot summary" },
-    { text = "Show Wishlist",            cmd = "loot wishlist" },
-    { text = "---",                      cmd = nil,         isSep = true },
-    { text = "Help",                     cmd = "loot help" },
-}
+-- Build options content
+local OPT_Y = -32
+local OPT_ROW = 22
+local OPT_BTN_HEIGHT = 20
 
-local mmMenuButtons = {}
-local MENU_ITEM_HEIGHT = 18
-local MENU_WIDTH = 160
-
-local function BuildMenu()
-    for i, info in ipairs(menuItems) do
-        local btn = mmMenuButtons[i]
-        if not btn then
-            btn = CreateFrame("Button", nil, mmMenu)
-            btn:SetHeight(MENU_ITEM_HEIGHT)
-
-            local hl = btn:CreateTexture(nil, "HIGHLIGHT")
-            hl:SetAllPoints()
-            hl:SetColorTexture(0.4, 0.2, 0.6, 0.4)
-            btn.hl = hl
-
-            local text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            text:SetPoint("LEFT", 8, 0)
-            text:SetPoint("RIGHT", -8, 0)
-            text:SetJustifyH("LEFT")
-            btn.text = text
-
-            mmMenuButtons[i] = btn
-        end
-
-        btn:SetPoint("TOPLEFT", mmMenu, "TOPLEFT", 4, -(4 + (i - 1) * MENU_ITEM_HEIGHT))
-        btn:SetPoint("RIGHT", mmMenu, "RIGHT", -4, 0)
-
-        if info.isHeader then
-            btn.text:SetText(info.text)
-            btn.hl:Hide()
-            btn:SetScript("OnClick", nil)
-        elseif info.isSep then
-            btn.text:SetText("|cFF444444------------|r")
-            btn.hl:Hide()
-            btn:SetScript("OnClick", nil)
-        else
-            btn.text:SetText(info.text)
-            btn.hl:Show()
-            local cmd = info.cmd
-            btn:SetScript("OnClick", function()
-                mmMenu:Hide()
-                SlashCmdList["ADHDBIS"](cmd)
-            end)
-        end
-        btn:Show()
-    end
-
-    mmMenu:SetSize(MENU_WIDTH, #menuItems * MENU_ITEM_HEIGHT + 8)
+local function OptHeader(parent, text, yOff)
+    local hdr = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    hdr:SetPoint("TOPLEFT", parent, "TOPLEFT", 10, yOff)
+    hdr:SetText("|cFFFFD100" .. text .. "|r")
+    local line = parent:CreateTexture(nil, "ARTWORK")
+    line:SetHeight(1)
+    line:SetPoint("TOPLEFT", parent, "TOPLEFT", 10, yOff - 13)
+    line:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -10, yOff - 13)
+    line:SetColorTexture(0.4, 0.3, 0.5, 0.5)
+    return yOff - 18
 end
+
+local function OptButton(parent, text, yOff, onClick)
+    local btn = CreateFrame("Button", nil, parent)
+    btn:SetSize(232, OPT_BTN_HEIGHT)
+    btn:SetPoint("TOPLEFT", parent, "TOPLEFT", 10, yOff)
+    local bg = btn:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.15, 0.12, 0.22, 0.6)
+    local hl = btn:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints()
+    hl:SetColorTexture(0.4, 0.2, 0.6, 0.3)
+    local label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    label:SetPoint("LEFT", 8, 0)
+    label:SetText(text)
+    btn:SetScript("OnClick", function()
+        if onClick then onClick() end
+    end)
+    btn.label = label
+    return btn, yOff - (OPT_BTN_HEIGHT + 3)
+end
+
+local function OptToggle(parent, text, yOff, getState, onToggle)
+    local row = CreateFrame("Button", nil, parent)
+    row:SetSize(232, OPT_BTN_HEIGHT)
+    row:SetPoint("TOPLEFT", parent, "TOPLEFT", 10, yOff)
+    local bg = row:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.12, 0.1, 0.18, 0.4)
+    local hl = row:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints()
+    hl:SetColorTexture(0.3, 0.15, 0.4, 0.3)
+    local label = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    label:SetPoint("LEFT", 8, 0)
+    label:SetText(text)
+    local status = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    status:SetPoint("RIGHT", -8, 0)
+    row.status = status
+    local function UpdateStatus()
+        if getState() then
+            status:SetText("|cFF00FF00ON|r")
+        else
+            status:SetText("|cFFFF4444OFF|r")
+        end
+    end
+    UpdateStatus()
+    row:SetScript("OnClick", function()
+        onToggle()
+        UpdateStatus()
+    end)
+    row.UpdateStatus = UpdateStatus
+    return row, yOff - (OPT_BTN_HEIGHT + 3)
+end
+
+-- Panels section
+local y = OPT_Y
+y = OptHeader(optPanel, "Panels", y)
+OptButton(optPanel, "Toggle BiS Panel", y, function() optPanel:Hide() TogglePanel() end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+OptButton(optPanel, "Toggle Loot Tracker", y, function() optPanel:Hide() SlashCmdList["ADHDBIS"]("loot") end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+OptButton(optPanel, "|cFF00FF00LootRadar|r (M+ Upgrade Scanner)", y, function() optPanel:Hide() SlashCmdList["ADHDBIS"]("radar") end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+
+-- Loot Tracker section
+y = y - 4
+y = OptHeader(optPanel, "Loot Tracker", y)
+OptButton(optPanel, "New Loot Session", y, function() SlashCmdList["ADHDBIS"]("loot new") end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+OptButton(optPanel, "Start Tracking", y, function() SlashCmdList["ADHDBIS"]("loot start") end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+OptButton(optPanel, "Stop Tracking", y, function() SlashCmdList["ADHDBIS"]("loot stop") end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+OptButton(optPanel, "Loot Summary (to chat)", y, function() SlashCmdList["ADHDBIS"]("loot summary") end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+OptButton(optPanel, "Show Wishlist", y, function() SlashCmdList["ADHDBIS"]("loot wishlist") end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+OptButton(optPanel, "Change Alert Sound", y, function() SlashCmdList["ADHDBIS"]("loot sound") end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+
+-- LootRadar section
+y = y - 4
+y = OptHeader(optPanel, "LootRadar", y)
+OptButton(optPanel, "Toggle Whisper/Party Mode", y, function() SlashCmdList["ADHDBIS"]("radar mode") end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+OptButton(optPanel, "Clear Results", y, function() SlashCmdList["ADHDBIS"]("radar clear") end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+
+-- Toggles section
+y = y - 4
+y = OptHeader(optPanel, "Debug / Advanced", y)
+OptToggle(optPanel, "Loot Debug Logging", y,
+    function() return ADHDBiS_LootDB and ADHDBiS_LootDB.debugMode end,
+    function() SlashCmdList["ADHDBIS"]("loot debug toggle") end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+OptButton(optPanel, "Show Debug Log", y, function() SlashCmdList["ADHDBIS"]("loot debug") end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+OptButton(optPanel, "Copy Debug Log", y, function() optPanel:Hide() SlashCmdList["ADHDBIS"]("loot debug copy") end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+OptButton(optPanel, "Clear Debug Log", y, function() SlashCmdList["ADHDBIS"]("loot debug clear") end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+
+-- Minimap section
+y = y - 4
+y = OptHeader(optPanel, "Minimap", y)
+OptButton(optPanel, "Hide Minimap Button", y, function() SlashCmdList["ADHDBIS"]("minimap hide") optPanel:Hide() end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+OptButton(optPanel, "Reset Minimap Position", y, function() SlashCmdList["ADHDBIS"]("minimap reset") end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
+
+-- Version info at bottom
+local verLabel = optPanel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+verLabel:SetPoint("BOTTOMLEFT", optPanel, "BOTTOMLEFT", 10, 8)
+verLabel:SetTextColor(0.4, 0.4, 0.4)
+verLabel:SetText("v" .. (C_AddOns.GetAddOnMetadata("ADHDBiS", "Version") or "?"))
+
+-- Resize panel to fit content
+optPanel:SetHeight(math.abs(y) + 30)
 
 minimapBtn:SetScript("OnClick", function(self, button)
     if button == "LeftButton" then
         TogglePanel()
     elseif button == "RightButton" then
-        BuildMenu()
-        mmMenu:ClearAllPoints()
-        mmMenu:SetPoint("TOPRIGHT", self, "BOTTOMLEFT", 0, 0)
-        mmMenu:Show()
+        if optPanel:IsShown() then
+            optPanel:Hide()
+        else
+            optPanel:ClearAllPoints()
+            optPanel:SetPoint("TOPRIGHT", self, "BOTTOMLEFT", 0, 0)
+            optPanel:Show()
+        end
     elseif button == "MiddleButton" then
         if ns.ToggleLootRadar then
             ns.ToggleLootRadar("")

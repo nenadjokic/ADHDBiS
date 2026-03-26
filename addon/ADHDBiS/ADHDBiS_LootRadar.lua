@@ -32,6 +32,7 @@ local mythicPlusActive = false
 local inDungeon = false      -- true when in any dungeon (M0, M+, heroic, etc.)
 local inspectQueue = {}
 local inspectCallback = nil -- "snapshot" or "compare"
+local inspectRetries = {}   -- [unit] = retry count
 
 -- ============================================================
 -- HELPERS
@@ -65,7 +66,7 @@ local function IsBiSForSpec(itemID)
     local specData = ADHDBiS_Data.classes[playerClass][specName]
     if not specData then return false, nil end
     for sourceName, data in pairs(specData) do
-        if data.gear then
+        if type(data) == "table" and data.gear then
             -- Check M+ BiS first (more relevant)
             if data.gear.mythicplus then
                 for _, item in ipairs(data.gear.mythicplus) do
@@ -126,8 +127,10 @@ local function SnapshotUnit(unit)
         local link = GetInventoryItemLink(unit, slotID)
         if link then
             local itemID = GetItemInfoInstant(link)
-            local ilvl = GetDetailedItemLevelInfo(link)
-            snapshot[slotID] = { link = link, ilvl = ilvl or 0, itemID = itemID or 0 }
+            if itemID then
+                local ilvl = GetDetailedItemLevelInfo(link)
+                snapshot[slotID] = { link = link, ilvl = ilvl or 0, itemID = itemID }
+            end
         end
     end
     return snapshot
@@ -139,6 +142,7 @@ local function SnapshotAllParty()
     partySnapshots[UnitName("player")] = SnapshotUnit("player")
     -- Queue inspect for party members
     inspectQueue = {}
+    inspectRetries = {}
     inspectCallback = "snapshot"
     for i = 1, 4 do
         local unit = "party" .. i
@@ -160,11 +164,19 @@ function ProcessInspectQueue()
         end
         return
     end
-    local unit = table.remove(inspectQueue, 1)
+    local unit = inspectQueue[1]
     if UnitExists(unit) and UnitIsConnected(unit) and CanInspect(unit) then
+        table.remove(inspectQueue, 1)
+        inspectRetries[unit] = nil
         NotifyInspect(unit)
     else
-        -- Skip this unit, try next
+        local retries = (inspectRetries[unit] or 0) + 1
+        if retries >= 3 then
+            table.remove(inspectQueue, 1)
+            inspectRetries[unit] = nil
+        else
+            inspectRetries[unit] = retries
+        end
         C_Timer.After(0.5, ProcessInspectQueue)
     end
 end
@@ -175,6 +187,7 @@ end
 
 local function ComparePartyGear()
     inspectQueue = {}
+    inspectRetries = {}
     inspectCallback = "compare"
     -- Re-snapshot self first
     partySnapshots["_new_" .. UnitName("player")] = SnapshotUnit("player")
@@ -583,11 +596,11 @@ function ShowLootRadarPanel()
         row.line3:SetText("Item Level: " .. (upgrade.ilvl or "?"))
 
         -- Send button
-        local sent = false
         row.sendBtn:SetText(db.messageMode == "whisper" and "Whisper" or "Party")
+        row.sent = false
         row.sendBtn:Enable()
         row.sendBtn:SetScript("OnClick", function(self)
-            if sent then return end
+            if row.sent then return end
             local mode = GetDB().messageMode
             local specName = GetPlayerSpec() or "my spec"
             local className = UnitClass("player") or "?"
@@ -603,7 +616,7 @@ function ShowLootRadarPanel()
                 print("|cFF9482C9ADHDBiS LootRadar:|r Message sent to party chat")
             end
 
-            sent = true
+            row.sent = true
             self:SetText("|cFF00FF00Sent!|r")
             self:Disable()
         end)
@@ -698,7 +711,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
 
     elseif event == "INSPECT_READY" then
         local inspectGUID = ...
-        if #inspectQueue >= 0 and inspectCallback then
+        if inspectCallback then
             -- Find which unit this GUID belongs to
             for i = 1, 4 do
                 local unit = "party" .. i

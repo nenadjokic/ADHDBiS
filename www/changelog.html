@@ -129,12 +129,40 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
+    <!-- === v1.5.2 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.5.2</span>
+            <span class="release-date">March 26, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">Addon &mdash; Options Panel &amp; Loot Tracker Polish</p>
+        <ul>
+            <li><strong>Options Panel</strong> &mdash; right-click minimap icon opens a full options panel with all commands as clickable buttons (Panels, Loot Tracker, LootRadar, Debug, Minimap sections)</li>
+            <li><strong>Collapsible boss groups</strong> &mdash; click boss headers in Loot Tracker to collapse/expand item sections</li>
+            <li><strong>Duplicate item support</strong> &mdash; when the same item drops twice, both are tracked separately with correct winner assignment</li>
+            <li><strong>Share &amp; Save buttons</strong> &mdash; Share opens a copyable formatted loot report; Save exports to a dedicated SavedVariables file (ADHDBiS_LootExport.lua)</li>
+            <li><strong>Session rename</strong> &mdash; right-click any session in the dropdown to rename it</li>
+            <li><strong>"Won:" message parsing</strong> &mdash; extracts winner name from roll results for faster owner updates</li>
+            <li><strong>Debug copy</strong> &mdash; Copy Debug Log button opens a copyable text window</li>
+            <li><strong>Bind type fix</strong> &mdash; "Binds when picked up" (tradeable raid loot) no longer shows as Soulbound</li>
+        </ul>
+
+        <p class="release-section">Stability Fixes</p>
+        <ul>
+            <li>LootRadar inspect queue no longer hangs when a party member is out of range (max 3 retries)</li>
+            <li>Nil guards on all inventory/item API calls to prevent silent data loss</li>
+            <li>IsEquippableItem check prevents false UPGRADE alerts for wrong armor/weapon types</li>
+            <li>Session items capped at 500 to prevent memory growth in long raids</li>
+        </ul>
+    </div>
+
     <!-- === v1.5.1 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.5.1</span>
             <span class="release-date">March 26, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">Addon &mdash; Loot Tracker Overhaul</p>
