@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"adhdbis-updater/config"
 	"adhdbis-updater/generator"
@@ -25,10 +26,18 @@ const banner = `
 func main() {
 	// CLI mode only when explicitly requested with --cli flag
 	cliMode := false
-	for _, arg := range os.Args[1:] {
+	apiUpdate := false
+	apiOutputDir := ""
+	for i, arg := range os.Args[1:] {
 		if arg == "--cli" || arg == "cli" {
 			cliMode = true
-			break
+		}
+		if arg == "--api-update" {
+			apiUpdate = true
+			// Next arg is the output directory
+			if i+2 < len(os.Args) {
+				apiOutputDir = os.Args[i+2]
+			}
 		}
 	}
 
@@ -49,6 +58,17 @@ func main() {
 
 	// Set companion version for generator
 	generator.CompanionVersion = CompanionVersion
+
+	// Headless API update mode: scrape all classes -> generate JSON for PWA API
+	if apiUpdate {
+		if apiOutputDir == "" {
+			fmt.Println("Usage: adhdbis-updater --api-update <output-dir>")
+			fmt.Println("Example: adhdbis-updater --api-update ../api/data")
+			os.Exit(1)
+		}
+		runAPIUpdate(apiOutputDir)
+		return
+	}
 
 	if !cliMode {
 		// Default: GUI mode
@@ -199,5 +219,54 @@ func main() {
 	fmt.Println("  ★ Enjoy ADHDBiS? Support development:")
 	fmt.Println("    buymeacoffee.com/nenadjokic")
 	fmt.Println("    paypal.me/nenadjokicRS")
+	fmt.Println()
+}
+
+// runAPIUpdate performs a headless scrape of ALL classes and generates JSON for the PWA API.
+// This is designed to be run by a cron job daily.
+func runAPIUpdate(outputDir string) {
+	fmt.Println("╔═══════════════════════════════════════╗")
+	fmt.Println("║    ADHDBiS API Data Update            ║")
+	fmt.Println("║    Scraping all classes (headless)     ║")
+	fmt.Println("╚═══════════════════════════════════════╝")
+	fmt.Println()
+
+	start := time.Now()
+
+	// Scrape all classes from Icy Veins
+	classSpecs := map[string][]scraper.ClassSpec{}
+	for _, class := range scraper.AllClasses {
+		classSpecs[class.Name] = class.Specs
+	}
+
+	result := scraper.RunScrape(scraper.ScrapeRequest{
+		Classes:    scraper.AllClasses,
+		ClassSpecs: classSpecs,
+		Sources:    []string{"Icy Veins"},
+	}, os.Stdout)
+
+	// Generate JSON
+	fmt.Println()
+	fmt.Println("=== Generating JSON for PWA API ===")
+	if err := generator.GenerateJSON(result.AllData, outputDir, "Icy Veins"); err != nil {
+		fmt.Printf("Error generating JSON: %v\n", err)
+		os.Exit(1)
+	}
+
+	elapsed := time.Since(start)
+	totalSpecs := 0
+	for _, specs := range classSpecs {
+		totalSpecs += len(specs)
+	}
+
+	fmt.Println()
+	fmt.Println("╔═══════════════════════════════════════╗")
+	fmt.Println("║         API Update Complete!           ║")
+	fmt.Println("╚═══════════════════════════════════════╝")
+	fmt.Printf("  Classes: %d\n", len(scraper.AllClasses))
+	fmt.Printf("  Specs:   %d\n", totalSpecs)
+	fmt.Printf("  Items:   %d\n", result.TotalItems)
+	fmt.Printf("  Output:  %s\n", outputDir)
+	fmt.Printf("  Time:    %s\n", elapsed.Round(time.Second))
 	fmt.Println()
 }

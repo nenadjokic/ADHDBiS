@@ -1,9 +1,19 @@
 # Binaries
 updater/binary/
 *.app/
+updater/adhdbis-updater
 
 # Build artifacts
 www/downloads/
+ADHDBiS.zip
+
+# PWA side project (not part of addon release)
+app/
+api/
+deploy-pwa.sh
+PWA_plan.md
+PWA_INFRASTRUCTURE.md
+updater/generator/json_export.go
 
 # OS files
 .DS_Store

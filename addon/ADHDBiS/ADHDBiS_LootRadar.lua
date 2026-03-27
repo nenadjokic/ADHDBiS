@@ -30,6 +30,7 @@ local partySnapshots = {}   -- [unitName] = { [slotID] = { link, ilvl, itemID } 
 local detectedUpgrades = {} -- { { looter, itemLink, itemID, ilvl, reason, slotName } }
 local mythicPlusActive = false
 local inDungeon = false      -- true when in any dungeon (M0, M+, heroic, etc.)
+local snapshotTaken = false  -- prevents re-snapshotting on every zone change
 local inspectQueue = {}
 local inspectCallback = nil -- "snapshot" or "compare"
 local inspectRetries = {}   -- [unit] = retry count
@@ -156,9 +157,8 @@ end
 function ProcessInspectQueue()
     if #inspectQueue == 0 then
         if inspectCallback == "snapshot" then
-            local count = 0
-            for _ in pairs(partySnapshots) do count = count + 1 end
-            print("|cFF9482C9ADHDBiS LootRadar:|r Gear snapshot taken (" .. count .. " players)")
+            -- Silently complete - initial snapshot message already printed in CheckDungeonStatus
+            inspectCallback = nil
         elseif inspectCallback == "compare" then
             CompareAndShowResults()
         end
@@ -217,7 +217,10 @@ function CompareAndShowResults()
                 for _, slotID in ipairs(ALL_GEAR_SLOTS) do
                     local old = oldSnap[slotID]
                     local new = newSnap[slotID]
-                    if new and (not old or old.itemID ~= new.itemID) then
+                    -- Only detect as new loot if:
+                    -- 1. New item exists AND old item existed (prevents false positives from failed inspects)
+                    -- 2. Item IDs are different (they actually changed gear)
+                    if new and old and old.itemID ~= new.itemID then
                         -- This player got a new item in this slot
                         local newItemID = new.itemID
                         local newIlvl = new.ilvl
@@ -283,9 +286,8 @@ function CompareAndShowResults()
 
     if #detectedUpgrades > 0 then
         ShowLootRadarPanel()
-    else
-        print("|cFF9482C9ADHDBiS LootRadar:|r No upgrades detected from party loot.")
     end
+    -- Don't spam "No upgrades detected" - silently do nothing if no upgrades found
 end
 
 -- ============================================================
@@ -650,31 +652,17 @@ end
 -- ============================================================
 -- EVENT HANDLING
 -- ============================================================
+-- M+ flow: START → snapshot → SILENT during run → COMPLETED → compare
+-- Non-M+ dungeons: CHAT_MSG_LOOT tracks loot in real-time (lightweight)
 
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:RegisterEvent("CHALLENGE_MODE_START")
 eventFrame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
-eventFrame:RegisterEvent("CHAT_MSG_LOOT")
 eventFrame:RegisterEvent("INSPECT_READY")
-eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 
--- Check if player is in a dungeon instance
-local function CheckDungeonStatus()
-    local _, instanceType = IsInInstance()
-    local wasInDungeon = inDungeon
-    inDungeon = (instanceType == "party") -- covers M0, Heroic, M+
-    if inDungeon and not wasInDungeon then
-        -- Entering dungeon - reset and snapshot
-        detectedUpgrades = {}
-        lootedItems = {}
-        print("|cFF9482C9ADHDBiS LootRadar:|r Dungeon detected - scanning active.")
-        C_Timer.After(2, SnapshotAllParty)
-    elseif not inDungeon and wasInDungeon then
-        -- Leaving dungeon
-        mythicPlusActive = false
-    end
-end
+-- CHAT_MSG_LOOT is only registered when NOT in M+ (see below)
+-- ZONE_CHANGED_NEW_AREA removed - no need to scan on zone changes
 
 eventFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
@@ -684,35 +672,44 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             radarFrame:ClearAllPoints()
             radarFrame:SetPoint(p[1], UIParent, p[3], p[4], p[5])
         end
-        C_Timer.After(3, CheckDungeonStatus)
-
-    elseif event == "ZONE_CHANGED_NEW_AREA" then
-        CheckDungeonStatus()
+        -- Check if we're in a dungeon on login/reload
+        local _, instanceType = IsInInstance()
+        inDungeon = (instanceType == "party")
 
     elseif event == "CHALLENGE_MODE_START" then
+        -- M+ started: take snapshot, go silent until completion
         mythicPlusActive = true
-        -- Dungeon detection already handles snapshot via CheckDungeonStatus
-        print("|cFF9482C9ADHDBiS LootRadar:|r M+ key started!")
+        snapshotTaken = true
+        inDungeon = true
+        detectedUpgrades = {}
+        lootedItems = {}
+        -- Unregister loot tracking during M+ (no loot drops until end)
+        eventFrame:UnregisterEvent("CHAT_MSG_LOOT")
+        print("|cFF9482C9ADHDBiS LootRadar:|r M+ started - snapshot taken. Silent until completion.")
+        C_Timer.After(2, SnapshotAllParty)
 
     elseif event == "CHALLENGE_MODE_COMPLETED" then
-        print("|cFF9482C9ADHDBiS LootRadar:|r M+ completed! Comparing gear snapshots...")
-        -- Wait for loot to be distributed from chest
+        -- M+ done: wait for chest loot, then compare
+        print("|cFF9482C9ADHDBiS LootRadar:|r M+ completed! Scanning loot in 8 seconds...")
         C_Timer.After(8, function()
             if mythicPlusActive then
                 ComparePartyGear()
+                -- Re-enable loot tracking for after the run
+                mythicPlusActive = false
+                snapshotTaken = false
             end
         end)
 
     elseif event == "CHAT_MSG_LOOT" then
+        -- Only fires in non-M+ dungeons (M0, heroic)
         local msg = ...
-        if msg then
+        if msg and inDungeon and not mythicPlusActive then
             OnLootMessage(msg)
         end
 
     elseif event == "INSPECT_READY" then
         local inspectGUID = ...
         if inspectCallback then
-            -- Find which unit this GUID belongs to
             for i = 1, 4 do
                 local unit = "party" .. i
                 if UnitExists(unit) and UnitGUID(unit) == inspectGUID then
@@ -728,7 +725,6 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
                     break
                 end
             end
-            -- Process next in queue
             C_Timer.After(1.5, ProcessInspectQueue)
         end
     end

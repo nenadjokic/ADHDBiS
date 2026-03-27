@@ -129,12 +129,29 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
+    <!-- === v1.5.9 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.5.9</span>
+            <span class="release-date">March 27, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">Bug Fixes</p>
+        <ul>
+            <li><strong>LootRadar M+ performance fix</strong> &mdash; LootRadar no longer scans during the entire M+ run. Snapshot is taken at key start, then completely silent until completion. Massively reduces CPU usage and chat spam</li>
+            <li><strong>Fixed "Gear snapshot taken" spam</strong> &mdash; Removed repeated snapshot messages on every zone change inside dungeons</li>
+            <li><strong>Fixed "No upgrades detected" spam</strong> &mdash; Removed chat spam after every loot event. Results are now shown silently only when relevant upgrades are found</li>
+            <li><strong>Fixed false positive loot detection</strong> &mdash; Regular equipped gear is no longer shown as new loot when inspect fails during initial snapshot</li>
+            <li><strong>Disabled CHAT_MSG_LOOT during M+</strong> &mdash; No loot drops during M+ runs (only from end chest), so loot event tracking is disabled to save resources</li>
+        </ul>
+    </div>
+
     <!-- === v1.5.8 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.5.8</span>
             <span class="release-date">March 26, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">Improvements</p>
