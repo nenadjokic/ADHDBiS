@@ -3,10 +3,112 @@ package scraper
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 )
+
+// statNames are the secondary/primary stats we look for in stat priority text.
+var statNames = []string{
+	"Haste", "Critical Strike", "Crit", "Mastery", "Versatility",
+	"Intellect", "Strength", "Agility", "Stamina",
+}
+
+// statPriorityRe matches stat priority patterns like "Haste > Crit = Mastery > Versatility"
+var statPriorityRe = regexp.MustCompile(`(?i)((?:Haste|Critical Strike|Crit|Mastery|Versatility|Intellect|Strength|Agility|Stamina)\s*(?:[>>=≥~≈]+\s*(?:Haste|Critical Strike|Crit|Mastery|Versatility|Intellect|Strength|Agility|Stamina)\s*){1,})`)
+
+// ParseStatPriority extracts stat priority from an Icy Veins enchants/gems page.
+// It looks for headings containing "Stat" and extracts priority text from nearby content.
+func ParseStatPriority(body []byte) string {
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	if err != nil {
+		return ""
+	}
+
+	// Strategy 1: Look for headings with "Stat" in text, then grab the next paragraph/list
+	var result string
+	doc.Find("h2, h3, h4").Each(func(i int, heading *goquery.Selection) {
+		if result != "" {
+			return
+		}
+		text := strings.ToLower(heading.Text())
+		if !strings.Contains(text, "stat") {
+			return
+		}
+		// Check siblings after this heading for stat priority text
+		heading.NextAll().EachWithBreak(func(j int, sib *goquery.Selection) bool {
+			sibTag := goquery.NodeName(sib)
+			// Stop at next heading
+			if sibTag == "h2" || sibTag == "h3" || sibTag == "h4" {
+				return false
+			}
+			sibText := strings.TrimSpace(sib.Text())
+			// Look for text containing > separators and stat names
+			if containsStatPriority(sibText) {
+				result = extractStatPriority(sibText)
+				if result != "" {
+					return false
+				}
+			}
+			return true
+		})
+	})
+
+	if result != "" {
+		logf("    Found stat priority: %s\n", result)
+		return result
+	}
+
+	// Strategy 2: Scan all text for the regex pattern
+	doc.Find("p, li, ol, td").Each(func(i int, el *goquery.Selection) {
+		if result != "" {
+			return
+		}
+		text := strings.TrimSpace(el.Text())
+		if containsStatPriority(text) {
+			result = extractStatPriority(text)
+		}
+	})
+
+	if result != "" {
+		logf("    Found stat priority (fallback): %s\n", result)
+	}
+	return result
+}
+
+// containsStatPriority checks if text looks like a stat priority string.
+func containsStatPriority(text string) bool {
+	if !strings.Contains(text, ">") && !strings.Contains(text, "≥") {
+		return false
+	}
+	statCount := 0
+	textLower := strings.ToLower(text)
+	for _, stat := range statNames {
+		if strings.Contains(textLower, strings.ToLower(stat)) {
+			statCount++
+		}
+	}
+	return statCount >= 3
+}
+
+// extractStatPriority pulls out the stat priority substring from a longer text.
+func extractStatPriority(text string) string {
+	// Try regex first
+	m := statPriorityRe.FindString(text)
+	if m != "" {
+		return strings.TrimSpace(m)
+	}
+
+	// Fallback: find the line containing > and stat names
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if containsStatPriority(line) && len(line) < 200 {
+			return line
+		}
+	}
+	return ""
+}
 
 // ParseEnchants parses enchants, gems, and consumables from an Icy Veins page.
 // Structure:

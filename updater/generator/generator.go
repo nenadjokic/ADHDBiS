@@ -144,6 +144,11 @@ func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, add
 					sb.WriteString(fmt.Sprintf("                    sourceLastModified = \"%s\",\n", luaEscape(data.SourceLastModified)))
 				}
 
+				// Stat Priority
+				if data.StatPriority != "" {
+					sb.WriteString(fmt.Sprintf("                    statPriority = \"%s\",\n", luaEscape(data.StatPriority)))
+				}
+
 				// Filter embellishments from gear lists -> move to enchants
 				var allEmbellishments []scraper.GearItem
 				overallGear, emb := filterEmbellishments(data.OverallGear)
@@ -240,6 +245,25 @@ func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, add
 	}
 
 	sb.WriteString("    },\n")
+
+	// Crest data (hardcoded per season - Midnight Season 1)
+	sb.WriteString("    crests = {\n")
+	sb.WriteString("        { name = \"Adventurer\", currencyID = 3383, cap = 500 },\n")
+	sb.WriteString("        { name = \"Veteran\", currencyID = 3341, cap = 500 },\n")
+	sb.WriteString("        { name = \"Champion\", currencyID = 3343, cap = 500 },\n")
+	sb.WriteString("        { name = \"Hero\", currencyID = 3345, cap = 500 },\n")
+	sb.WriteString("        { name = \"Myth\", currencyID = 3347, cap = 200 },\n")
+	sb.WriteString("    },\n")
+
+	// Upgrade track definitions (hardcoded per season)
+	sb.WriteString("    upgradeTracks = {\n")
+	sb.WriteString("        { name = \"Adventurer\", base = 220, top = 237, ranks = 6 },\n")
+	sb.WriteString("        { name = \"Veteran\", base = 233, top = 250, ranks = 6 },\n")
+	sb.WriteString("        { name = \"Champion\", base = 246, top = 263, ranks = 6 },\n")
+	sb.WriteString("        { name = \"Hero\", base = 259, top = 276, ranks = 6 },\n")
+	sb.WriteString("        { name = \"Myth\", base = 272, top = 289, ranks = 6 },\n")
+	sb.WriteString("    },\n")
+
 	sb.WriteString("}\n")
 
 	// Write to AddOns folder

@@ -221,6 +221,7 @@ type SpecData struct {
 	Consumables  []Consumable
 	TalentBuilds    []TalentBuild
 	TrinketRankings []TrinketRanking
+	StatPriority    string // e.g. "Haste > Critical Strike = Mastery > Versatility"
 	// Timestamps
 	ScrapedAt        string // when we fetched the data (ISO 8601)
 	SourceLastModified string // HTTP Last-Modified from the source page (gear page)

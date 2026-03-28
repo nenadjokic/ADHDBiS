@@ -2792,6 +2792,8 @@ OptButton(optPanel, "Toggle Loot Tracker", y, function() optPanel:Hide() SlashCm
 _, y = nil, y - (OPT_BTN_HEIGHT + 3)
 OptButton(optPanel, "|cFF00FF00LootRadar|r (M+ Upgrade Scanner)", y, function() optPanel:Hide() SlashCmdList["ADHDBIS"]("radar") end)
 _, y = nil, y - (OPT_BTN_HEIGHT + 3)
+OptButton(optPanel, "Gear Overview", y, function() optPanel:Hide() if ns.ToggleOverview then ns.ToggleOverview() end end)
+_, y = nil, y - (OPT_BTN_HEIGHT + 3)
 
 -- Loot Tracker section
 y = y - 4
@@ -2984,6 +2986,12 @@ SlashCmdList["ADHDBIS"] = function(msg)
         minimapBtn:Show()
         RestoreMinimapPosition()
         print("|cFF9482C9ADHDBiS:|r Minimap button reset to default position.")
+    elseif cmd == "overview" or cmd == "ov" then
+        if ns.ToggleOverview then
+            ns.ToggleOverview()
+        else
+            print("|cFF9482C9ADHDBiS:|r Overview not loaded.")
+        end
     elseif cmd == "version" then
         local tocVersion = C_AddOns.GetAddOnMetadata("ADHDBiS", "Version") or "?"
         print("|cFF9482C9ADHDBiS:|r v" .. tocVersion)
@@ -3006,6 +3014,7 @@ SlashCmdList["ADHDBIS"] = function(msg)
     else
         print("|cFF9482C9ADHDBiS:|r Commands:")
         print("  |cFFFFFFFF/adhd bis|r - Toggle BiS panel")
+        print("  |cFFFFFFFF/adhd overview|r - Gear overview, crests, enchant/gem audit")
         print("  |cFFFFFFFF/adhd loot|r - Toggle Loot Tracker")
         print("  |cFFFFFFFF/adhd loot help|r - All loot tracker commands")
         print("  |cFFFFFFFF/adhd radar|r - Toggle LootRadar (M+ upgrade scanner)")
