@@ -129,8 +129,10 @@ func RunScrape(req ScrapeRequest, logWriter io.Writer) *ScrapeResult {
 						result.TotalItems += len(ench) + len(gems) + len(cons)
 					}
 
-					// Try to extract stat priority from the enchants page (Icy Veins only)
-					if !useWowhead {
+					// Try to extract stat priority from the enchants page
+					if useWowhead {
+						specData.StatPriority = ParseWowheadStatPriority(enchBody)
+					} else {
 						specData.StatPriority = ParseStatPriority(enchBody)
 					}
 				}

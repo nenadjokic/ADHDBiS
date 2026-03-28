@@ -18,6 +18,47 @@ var statNames = []string{
 // statPriorityRe matches stat priority patterns like "Haste > Crit = Mastery > Versatility"
 var statPriorityRe = regexp.MustCompile(`(?i)((?:Haste|Critical Strike|Crit|Mastery|Versatility|Intellect|Strength|Agility|Stamina)\s*(?:[>>=≥~≈]+\s*(?:Haste|Critical Strike|Crit|Mastery|Versatility|Intellect|Strength|Agility|Stamina)\s*){1,})`)
 
+// ParseWowheadStatPriority extracts stat priority from a Wowhead guide page.
+// Wowhead uses BBCode-like markup, so we search the raw markup text for stat priority patterns.
+func ParseWowheadStatPriority(body []byte) string {
+	markup := extractMarkup(body)
+	if markup == "" {
+		return ""
+	}
+
+	// Look for stat priority text in the markup
+	// First try near headings mentioning "stat"
+	lines := strings.Split(markup, "\n")
+	nearStatHeading := false
+	for _, line := range lines {
+		lineLower := strings.ToLower(line)
+		if strings.Contains(lineLower, "[h2") || strings.Contains(lineLower, "[h3") || strings.Contains(lineLower, "[h4") {
+			nearStatHeading = strings.Contains(lineLower, "stat")
+			continue
+		}
+		if nearStatHeading && containsStatPriority(line) {
+			result := extractStatPriority(line)
+			if result != "" {
+				logf("    Found stat priority (Wowhead heading): %s\n", result)
+				return result
+			}
+		}
+	}
+
+	// Fallback: scan all lines for the regex pattern
+	for _, line := range lines {
+		if containsStatPriority(line) {
+			result := extractStatPriority(line)
+			if result != "" {
+				logf("    Found stat priority (Wowhead fallback): %s\n", result)
+				return result
+			}
+		}
+	}
+
+	return ""
+}
+
 // ParseStatPriority extracts stat priority from an Icy Veins enchants/gems page.
 // It looks for headings containing "Stat" and extracts priority text from nearby content.
 func ParseStatPriority(body []byte) string {

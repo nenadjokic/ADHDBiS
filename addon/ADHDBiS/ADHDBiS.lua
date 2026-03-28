@@ -2439,7 +2439,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             C_Timer.After(3, function()
                 if not ns.welcomePopup then
                     local pop = CreateFrame("Frame", "ADHDBiSWelcome", UIParent, "BackdropTemplate")
-                    pop:SetSize(340, 310)
+                    pop:SetSize(460, 400)
                     pop:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
                     pop:SetFrameStrata("DIALOG")
                     pop:SetBackdrop({
@@ -2455,79 +2455,104 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
                     pop:RegisterForDrag("LeftButton")
                     pop:SetScript("OnDragStart", function(self) self:StartMoving() end)
                     pop:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+                    pop:SetClampedToScreen(true)
+
+                    tinsert(UISpecialFrames, "ADHDBiSWelcome")
+
+                    -- Title bar background
+                    local titleBg = pop:CreateTexture(nil, "ARTWORK")
+                    titleBg:SetHeight(28)
+                    titleBg:SetPoint("TOPLEFT", pop, "TOPLEFT", 4, -4)
+                    titleBg:SetPoint("TOPRIGHT", pop, "TOPRIGHT", -4, -4)
+                    titleBg:SetColorTexture(0.15, 0.1, 0.25, 0.7)
 
                     -- Title
                     local title = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-                    title:SetPoint("TOP", pop, "TOP", 0, -16)
-                    title:SetText("|cFF9482C9ADHDBiS|r")
+                    title:SetPoint("TOP", pop, "TOP", 0, -9)
+                    title:SetText("|cFF9482C9ADHDBiS|r - Best in Slot & Loot Tracker")
 
-                    -- Subtitle
-                    local sub = pop:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-                    sub:SetPoint("TOP", title, "BOTTOM", 0, -4)
-                    sub:SetText("|cFFBBBBBBBest in Slot & Loot Tracker|r")
+                    -- Close button
+                    local closeBtn = CreateFrame("Button", nil, pop, "UIPanelCloseButton")
+                    closeBtn:SetPoint("TOPRIGHT", pop, "TOPRIGHT", -2, -2)
 
-                    -- Commands
-                    local cmds = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-                    cmds:SetPoint("TOP", sub, "BOTTOM", 0, -14)
-                    cmds:SetWidth(300)
-                    cmds:SetJustifyH("LEFT")
-                    cmds:SetSpacing(3)
-                    cmds:SetText(
-                        "|cFFFFFFFF/adhd bis|r  |cFF888888- BiS gear panel|r\n" ..
-                        "|cFFFFFFFF/adhd loot|r  |cFF888888- Loot tracker|r\n" ..
-                        "|cFFFFFFFF/adhd loot new|r  |cFF888888- New session|r\n" ..
-                        "|cFFFFFFFF/adhd loot help|r  |cFF888888- All commands|r\n\n" ..
+                    -- Body
+                    local body = pop:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+                    body:SetPoint("TOPLEFT", pop, "TOPLEFT", 20, -42)
+                    body:SetPoint("RIGHT", pop, "RIGHT", -20, 0)
+                    body:SetJustifyH("LEFT")
+                    body:SetSpacing(3)
+                    body:SetText(
+                        "|cFFFFFFFFCommands:|r\n\n" ..
+                        "  |cFFFFFFFF/adhd bis|r  |cFF888888- BiS gear panel|r\n" ..
+                        "  |cFFFFFFFF/adhd loot|r  |cFF888888- Loot tracker|r\n" ..
+                        "  |cFFFFFFFF/adhd loot new|r  |cFF888888- New session|r\n" ..
+                        "  |cFFFFFFFF/adhd loot help|r  |cFF888888- All commands|r\n\n" ..
                         "|cFF888888Or use the minimap button! (Shift+Drag to move)|r"
                     )
 
-                    -- Separator
-                    local sep = pop:CreateTexture(nil, "ARTWORK")
-                    sep:SetHeight(1)
-                    sep:SetPoint("LEFT", pop, "LEFT", 16, 0)
-                    sep:SetPoint("RIGHT", pop, "RIGHT", -16, 0)
-                    sep:SetPoint("TOP", cmds, "BOTTOM", 0, -10)
-                    sep:SetColorTexture(0.3, 0.2, 0.5, 0.5)
+                    -- Support section - anchored below body
+                    local supportHeader = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+                    supportHeader:SetPoint("TOPLEFT", body, "BOTTOMLEFT", 0, -16)
+                    supportHeader:SetText("|cFF9482C9Support Development|r")
 
-                    -- Support text
-                    local support = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-                    support:SetPoint("TOP", sep, "BOTTOM", 0, -10)
-                    support:SetWidth(300)
-                    support:SetJustifyH("CENTER")
-                    support:SetText(
-                        "|cFFBBBBBBEnjoy the addon? Support development!|r\n" ..
-                        "|cFFFFDD00buymeacoffee.com/nenadjokic|r\n" ..
-                        "|cFF0070BApaypal.me/nenadjokicRS|r"
-                    )
+                    local supportLine = pop:CreateTexture(nil, "ARTWORK")
+                    supportLine:SetHeight(1)
+                    supportLine:SetPoint("TOPLEFT", supportHeader, "BOTTOMLEFT", 0, -4)
+                    supportLine:SetPoint("RIGHT", pop, "RIGHT", -20, 0)
+                    supportLine:SetColorTexture(0.3, 0.2, 0.5, 0.5)
 
-                    -- "Don't show again" button
-                    local dismissBtn = CreateFrame("Button", nil, pop)
-                    dismissBtn:SetSize(200, 28)
-                    dismissBtn:SetPoint("BOTTOM", pop, "BOTTOM", 0, 40)
-                    local dismissBg = dismissBtn:CreateTexture(nil, "BACKGROUND")
-                    dismissBg:SetAllPoints()
-                    dismissBg:SetColorTexture(0.3, 0.15, 0.15, 0.8)
-                    local dismissTxt = dismissBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-                    dismissTxt:SetPoint("CENTER")
-                    dismissTxt:SetText("|cFFFF8888Don't show me this again|r")
-                    dismissBtn:SetScript("OnClick", function()
+                    local supportText = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    supportText:SetPoint("TOPLEFT", supportLine, "BOTTOMLEFT", 0, -8)
+                    supportText:SetPoint("RIGHT", pop, "RIGHT", -20, 0)
+                    supportText:SetJustifyH("LEFT")
+                    supportText:SetTextColor(0.8, 0.8, 0.8)
+                    supportText:SetText("If you enjoy ADHDBiS, consider supporting development!\nCopy a link below and paste it in your browser:")
+
+                    -- Copyable URL boxes
+                    local coffeeLabel = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    coffeeLabel:SetPoint("TOPLEFT", supportText, "BOTTOMLEFT", 0, -10)
+                    coffeeLabel:SetTextColor(1, 0.82, 0)
+                    coffeeLabel:SetText("Buy Me a Coffee:")
+
+                    local coffeeBox = CreateFrame("EditBox", "ADHDBiSCoffeeURL", pop, "InputBoxTemplate")
+                    coffeeBox:SetPoint("LEFT", coffeeLabel, "RIGHT", 8, 0)
+                    coffeeBox:SetSize(260, 20)
+                    coffeeBox:SetAutoFocus(false)
+                    coffeeBox:SetText("buymeacoffee.com/nenadjokic")
+                    coffeeBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+                    coffeeBox:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+
+                    local paypalLabel = pop:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                    paypalLabel:SetPoint("TOPLEFT", coffeeLabel, "BOTTOMLEFT", 0, -10)
+                    paypalLabel:SetTextColor(0.4, 0.7, 1)
+                    paypalLabel:SetText("PayPal:")
+
+                    local paypalBox = CreateFrame("EditBox", "ADHDBiSPaypalURL", pop, "InputBoxTemplate")
+                    paypalBox:SetPoint("LEFT", paypalLabel, "RIGHT", 8, 0)
+                    paypalBox:SetPoint("RIGHT", coffeeBox, "RIGHT", 0, 0)
+                    paypalBox:SetHeight(20)
+                    paypalBox:SetAutoFocus(false)
+                    paypalBox:SetText("paypal.me/nenadjokicRS")
+                    paypalBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+                    paypalBox:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+
+                    -- Buttons
+                    local dontShowBtn = CreateFrame("Button", nil, pop, "UIPanelButtonTemplate")
+                    dontShowBtn:SetSize(160, 26)
+                    dontShowBtn:SetPoint("BOTTOMLEFT", pop, "BOTTOMLEFT", 20, 15)
+                    dontShowBtn:SetText("Don't show again")
+                    dontShowBtn:SetScript("OnClick", function()
                         local d = GetDB()
                         d.hideSupportMsg = true
                         pop:Hide()
                         print("|cFF9482C9ADHDBiS:|r Welcome popup hidden permanently.")
                     end)
-                    dismissBtn:SetScript("OnEnter", function() dismissTxt:SetText("|cFFFFAAAADon't show me this again|r") end)
-                    dismissBtn:SetScript("OnLeave", function() dismissTxt:SetText("|cFFFF8888Don't show me this again|r") end)
 
-                    -- Close button (X) to dismiss for this session only
-                    local closeBtn = CreateFrame("Button", nil, pop)
-                    closeBtn:SetSize(22, 22)
-                    closeBtn:SetPoint("TOPRIGHT", pop, "TOPRIGHT", -6, -6)
-                    local closeTxt = closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-                    closeTxt:SetPoint("CENTER")
-                    closeTxt:SetText("|cFFFF4444X|r")
-                    closeBtn:SetScript("OnClick", function() pop:Hide() end)
-                    closeBtn:SetScript("OnEnter", function() closeTxt:SetText("|cFFFF8888X|r") end)
-                    closeBtn:SetScript("OnLeave", function() closeTxt:SetText("|cFFFF4444X|r") end)
+                    local gotItBtn = CreateFrame("Button", nil, pop, "UIPanelButtonTemplate")
+                    gotItBtn:SetSize(100, 26)
+                    gotItBtn:SetPoint("BOTTOMRIGHT", pop, "BOTTOMRIGHT", -20, 15)
+                    gotItBtn:SetText("Got it!")
+                    gotItBtn:SetScript("OnClick", function() pop:Hide() end)
 
                     ns.welcomePopup = pop
                 end
@@ -2572,75 +2597,73 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
 end)
 
 -- ============================================================
--- MINIMAP BUTTON (parented to UIParent, not Minimap - avoids taint)
+-- MINIMAP BUTTON (parented to Minimap so it scales with Edit Mode)
 -- ============================================================
 
-local minimapBtn = CreateFrame("Button", "ADHDBiSMinimapBtn", UIParent)
-minimapBtn:SetSize(31, 31)
+local minimapBtn = CreateFrame("Button", "ADHDBiSMinimapBtn", Minimap)
+minimapBtn:SetSize(33, 33)
 minimapBtn:SetFrameStrata("MEDIUM")
 minimapBtn:SetFrameLevel(8)
 minimapBtn:EnableMouse(true)
 minimapBtn:SetMovable(true)
 minimapBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp", "MiddleButtonUp")
 
--- Background (dark circle) - offset matches WoW standard minimap buttons
-local mmBg = minimapBtn:CreateTexture(nil, "BACKGROUND")
-mmBg:SetSize(21, 21)
-mmBg:SetPoint("TOPLEFT", minimapBtn, "TOPLEFT", 7, -5)
-mmBg:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
-
--- Icon - same offset and size as background
+-- Icon (fills the button area)
 local mmIcon = minimapBtn:CreateTexture(nil, "ARTWORK")
-mmIcon:SetSize(17, 17)
-mmIcon:SetPoint("TOPLEFT", minimapBtn, "TOPLEFT", 7, -5)
+mmIcon:SetSize(20, 20)
+mmIcon:SetPoint("TOPLEFT", minimapBtn, "TOPLEFT", 7, -6)
 mmIcon:SetTexture("Interface\\Icons\\INV_Misc_Book_09")
+mmIcon:SetTexCoord(0.05, 0.95, 0.05, 0.95)
 
--- Border circle - anchored to TOPLEFT (NOT center - WoW tracking border is offset)
+-- Border circle
 local mmBorder = minimapBtn:CreateTexture(nil, "OVERLAY")
-mmBorder:SetSize(53, 53)
+mmBorder:SetSize(54, 54)
 mmBorder:SetPoint("TOPLEFT", minimapBtn, "TOPLEFT", 0, 0)
 mmBorder:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
 
--- Highlight on hover
+-- Highlight on hover (subtle glow on the icon)
 local mmHighlight = minimapBtn:CreateTexture(nil, "HIGHLIGHT")
-mmHighlight:SetSize(17, 17)
-mmHighlight:SetPoint("TOPLEFT", minimapBtn, "TOPLEFT", 7, -5)
-mmHighlight:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+mmHighlight:SetSize(20, 20)
+mmHighlight:SetPoint("TOPLEFT", minimapBtn, "TOPLEFT", 7, -6)
+mmHighlight:SetColorTexture(1, 1, 1, 0.2)
 
--- Free-floating position (saved as x,y relative to UIParent center)
+-- Position around minimap edge by angle (degrees, saved)
 local mmDragging = false
+
+local function UpdateMinimapPosition(angle)
+    local radius = (Minimap:GetWidth() / 2) + 10
+    local x = math.cos(angle) * radius
+    local y = math.sin(angle) * radius
+    minimapBtn:ClearAllPoints()
+    minimapBtn:SetPoint("CENTER", Minimap, "CENTER", x, y)
+end
 
 local function RestoreMinimapPosition()
     local db = GetDB()
-    minimapBtn:ClearAllPoints()
-    if db.minimapX and db.minimapY then
-        minimapBtn:SetPoint("CENTER", UIParent, "CENTER", db.minimapX, db.minimapY)
-    else
-        -- Default: near top-right of minimap
-        local radius = (Minimap:GetWidth() / 2) + 16
-        local x = math.cos(0.8) * radius
-        local y = math.sin(0.8) * radius
-        minimapBtn:SetPoint("CENTER", Minimap, "CENTER", x, y)
-    end
+    local angle = db.minimapAngle or 0.8
+    UpdateMinimapPosition(angle)
 end
 
 minimapBtn:SetScript("OnMouseDown", function(self, button)
     if button == "LeftButton" and IsShiftKeyDown() then
         mmDragging = true
-        self:StartMoving()
+        self:SetScript("OnUpdate", function(self)
+            local mx, my = Minimap:GetCenter()
+            local cx, cy = GetCursorPosition()
+            local scale = UIParent:GetEffectiveScale()
+            cx, cy = cx / scale, cy / scale
+            local angle = math.atan2(cy - my, cx - mx)
+            UpdateMinimapPosition(angle)
+            local db = GetDB()
+            db.minimapAngle = angle
+        end)
     end
 end)
 
 minimapBtn:SetScript("OnMouseUp", function(self, button)
     if mmDragging then
         mmDragging = false
-        self:StopMovingOrSizing()
-        -- Save position relative to UIParent center
-        local cx, cy = self:GetCenter()
-        local ux, uy = UIParent:GetCenter()
-        local db = GetDB()
-        db.minimapX = cx - ux
-        db.minimapY = cy - uy
+        self:SetScript("OnUpdate", nil)
     end
 end)
 
@@ -2648,11 +2671,13 @@ end)
 minimapBtn:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
     GameTooltip:AddLine("|cFF9482C9ADHDBiS|r")
-    GameTooltip:AddLine("|cFFFFFFFFLeft-click:|r Toggle BiS Panel", 1, 1, 1)
-    GameTooltip:AddLine("|cFFFFFFFFRight-click:|r Options Panel", 1, 1, 1)
-    GameTooltip:AddLine("|cFFFFFFFFMiddle-click:|r Toggle LootRadar", 1, 1, 1)
-    GameTooltip:AddLine("|cFF888888Shift+Drag anywhere to move|r", 0.5, 0.5, 0.5)
-    GameTooltip:AddLine("|cFF888888/adhd minimap hide|r", 0.4, 0.4, 0.4)
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("|cFFFFFFFFLeft-click:|r Toggle BiS Panel")
+    GameTooltip:AddLine("|cFFFFFFFFRight-click:|r Options Panel")
+    GameTooltip:AddLine("|cFFFFFFFFMiddle-click:|r Toggle LootRadar")
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("|cFF888888Shift+Drag to reposition|r")
+    GameTooltip:AddLine("|cFF888888/adhd minimap hide|r")
     GameTooltip:Show()
 end)
 minimapBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -2810,7 +2835,18 @@ lootTrackToggle, y = OptToggle(optPanel, "Loot Tracking", y,
             SlashCmdList["ADHDBIS"]("loot start")
         end
     end)
-OptButton(optPanel, "Loot Summary (to chat)", y, function() SlashCmdList["ADHDBIS"]("loot summary") end)
+OptButton(optPanel, "Loot Summary", y, function()
+    -- Show channel picker dropdown
+    local menuFrame = CreateFrame("Frame", "ADHDBiSSummaryMenu", UIParent, "UIDropDownMenuTemplate")
+    local menuList = {
+        { text = "Only Me (chat)", notCheckable = true, func = function() SlashCmdList["ADHDBIS"]("loot summary"); CloseDropDownMenus() end },
+        { text = "Say", notCheckable = true, func = function() SlashCmdList["ADHDBIS"]("loot summary say"); CloseDropDownMenus() end },
+        { text = "Party", notCheckable = true, func = function() SlashCmdList["ADHDBIS"]("loot summary party"); CloseDropDownMenus() end },
+        { text = "Raid", notCheckable = true, func = function() SlashCmdList["ADHDBIS"]("loot summary raid"); CloseDropDownMenus() end },
+        { text = "Guild", notCheckable = true, func = function() SlashCmdList["ADHDBIS"]("loot summary guild"); CloseDropDownMenus() end },
+    }
+    EasyMenu(menuList, menuFrame, "cursor", 0, 0, "MENU")
+end)
 _, y = nil, y - (OPT_BTN_HEIGHT + 3)
 OptButton(optPanel, "Show Wishlist", y, function() SlashCmdList["ADHDBIS"]("loot wishlist") end)
 _, y = nil, y - (OPT_BTN_HEIGHT + 3)
@@ -2980,6 +3016,7 @@ SlashCmdList["ADHDBIS"] = function(msg)
         print("|cFF9482C9ADHDBiS:|r Minimap button visible.")
     elseif cmd == "minimap reset" then
         local db = GetDB()
+        db.minimapAngle = 0.8
         db.minimapX = nil
         db.minimapY = nil
         db.minimapHidden = false

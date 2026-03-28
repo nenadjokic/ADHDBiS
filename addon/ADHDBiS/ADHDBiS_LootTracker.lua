@@ -1908,13 +1908,35 @@ function ns.ToggleLootTracker(subCmd)
         return
     end
 
-    -- /adhd loot summary - print session summary to chat
-    if subCmd == "summary" then
+    -- /adhd loot summary [channel] - print session summary
+    -- channel: (none)=self, say, party, raid, guild
+    if subCmd == "summary" or subCmd:match("^summary%s+") then
+        local channel = subCmd:match("^summary%s+(%S+)$")
         if not currentSession or not currentSession.items or #currentSession.items == 0 then
             print("|cFF9482C9ADHDBiS:|r No loot in current session.")
             return
         end
-        print("|cFF9482C9ADHDBiS:|r --- Session: |cFFFFFFFF" .. (currentSession.name or "?") .. "|r ---")
+
+        -- Determine output function
+        local function output(msg)
+            if not channel then
+                print(msg)
+            else
+                -- Strip color codes for channel messages
+                local clean = msg:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|H.-|h", ""):gsub("|h", "")
+                -- But keep item links
+                local withLinks = msg:gsub("|c%x%x%x%x%x%x%x%x([^|]-)|r", "%1")
+                SendChatMessage(clean, channel:upper())
+            end
+        end
+
+        -- For channel output, use clean text; for self, use colored
+        if not channel then
+            print("|cFF9482C9ADHDBiS:|r --- Session: |cFFFFFFFF" .. (currentSession.name or "?") .. "|r ---")
+        else
+            SendChatMessage("=== ADHDBiS Loot: " .. (currentSession.name or "?") .. " ===", channel:upper())
+        end
+
         -- Count items per player
         local playerItems = {}
         for _, item in ipairs(currentSession.items) do
@@ -1922,19 +1944,31 @@ function ns.ToggleLootTracker(subCmd)
             playerItems[p] = (playerItems[p] or 0) + 1
         end
         for player, count in pairs(playerItems) do
-            local color = (player == UnitName("player")) and "|cFF00FF00" or "|cFFFFFFFF"
-            print("  " .. color .. player .. "|r: " .. count .. " items")
+            if not channel then
+                local color = (player == UnitName("player")) and "|cFF00FF00" or "|cFFFFFFFF"
+                print("  " .. color .. player .. "|r: " .. count .. " items")
+            else
+                SendChatMessage("  " .. player .. ": " .. count .. " items", channel:upper())
+            end
         end
         -- List items by boss
         for _, bossName in ipairs(currentSession.bosses or {}) do
-            print("  |cFFFFD100" .. bossName .. ":|r")
+            if not channel then
+                print("  |cFFFFD100" .. bossName .. ":|r")
+            else
+                SendChatMessage("-- " .. bossName .. " --", channel:upper())
+            end
             for _, item in ipairs(currentSession.items) do
                 if item.boss == bossName then
                     local link = item.itemLink or ("[" .. item.itemID .. "]")
                     local ilvlStr = (item.ilvl and item.ilvl > 0) and (" " .. item.ilvl) or ""
                     local trackStr = (item.track and item.track ~= "") and (" " .. item.track .. " " .. item.trackStep) or ""
                     local playerStr = item.player or "?"
-                    print("    " .. link .. ilvlStr .. trackStr .. " -> " .. playerStr)
+                    if not channel then
+                        print("    " .. link .. ilvlStr .. trackStr .. " -> " .. playerStr)
+                    else
+                        SendChatMessage("  " .. link .. ilvlStr .. trackStr .. " -> " .. playerStr, channel:upper())
+                    end
                 end
             end
         end

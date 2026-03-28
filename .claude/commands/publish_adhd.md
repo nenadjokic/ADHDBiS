@@ -17,21 +17,21 @@ Perform a complete release of the ADHDBiS addon. Follow ALL steps in order. Do N
 - Print a summary of what will be done and what changes are being released (based on git diff since last tag)
 
 ## Step 1: Pre-load BiS Data (CRITICAL)
-- BEFORE creating the zip, run the companion app to scrape ALL classes and generate fresh ADHDBiS_Data.lua:
-  ```
-  cd updater
-  go run . --cli
-  # Select: [1] Icy Veins, [0] All classes, confirm
-  ```
-  OR use the headless API update mode:
+- BEFORE creating the zip, run the companion app to scrape ALL classes from BOTH sources and generate fresh ADHDBiS_Data.lua:
   ```
   cd updater
   go build -o adhdbis-updater .
-  ./adhdbis-updater --api-update ../addon/ADHDBiS
+  echo -e "3\n0\n\n" | ./adhdbis-updater --cli
   ```
-  Wait for scrape to finish (~3-5 minutes for all 40 specs).
-- Verify `addon/ADHDBiS/ADHDBiS_Data.lua` exists and has fresh data (check date in file header)
-- This ensures users have BiS data THE INSTANT they install the addon, without needing to run the companion app first
+  This selects: [3] Both (Icy Veins + Wowhead), [0] All classes, then Enter to confirm.
+  Wait for scrape to finish (~5-10 minutes for all 40 specs from both sources).
+- The generated file goes to the WoW AddOns folder. Copy it back to source:
+  ```
+  cp "/Volumes/Samsung 1TB/World of Warcraft/_retail_/Interface/AddOns/ADHDBiS/ADHDBiS_Data.lua" addon/ADHDBiS/ADHDBiS_Data.lua
+  ```
+- Verify `addon/ADHDBiS/ADHDBiS_Data.lua` has fresh data: `head -3 addon/ADHDBiS/ADHDBiS_Data.lua` should show today's date and "Source: Both"
+- This ensures users have BiS data from BOTH sources THE INSTANT they install the addon
+- IMPORTANT: Always scrape BOTH sources (option 3), never just one
 
 ## Step 2: Website Audit
 - Read `www/index.html` and compare feature descriptions, commands table, and version number against actual addon code
