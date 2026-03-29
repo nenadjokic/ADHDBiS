@@ -660,21 +660,36 @@ eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:RegisterEvent("CHALLENGE_MODE_START")
 eventFrame:RegisterEvent("CHALLENGE_MODE_COMPLETED")
 eventFrame:RegisterEvent("INSPECT_READY")
-
--- CHAT_MSG_LOOT is only registered when NOT in M+ (see below)
--- ZONE_CHANGED_NEW_AREA removed - no need to scan on zone changes
+eventFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 
 eventFrame:SetScript("OnEvent", function(self, event, ...)
-    if event == "PLAYER_ENTERING_WORLD" then
-        local db = GetDB()
-        if db.windowPoint then
-            local p = db.windowPoint
-            radarFrame:ClearAllPoints()
-            radarFrame:SetPoint(p[1], UIParent, p[3], p[4], p[5])
+    if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
+        if event == "PLAYER_ENTERING_WORLD" then
+            local db = GetDB()
+            if db.windowPoint then
+                local p = db.windowPoint
+                radarFrame:ClearAllPoints()
+                radarFrame:SetPoint(p[1], UIParent, p[3], p[4], p[5])
+            end
         end
-        -- Check if we're in a dungeon on login/reload
+        -- Check if we're in a dungeon
         local _, instanceType = IsInInstance()
+        local wasDungeon = inDungeon
         inDungeon = (instanceType == "party")
+
+        -- Auto-register loot tracking when entering a non-M+ dungeon
+        if inDungeon and not mythicPlusActive then
+            eventFrame:RegisterEvent("CHAT_MSG_LOOT")
+            if not wasDungeon then
+                -- Just entered dungeon - take initial snapshot
+                detectedUpgrades = {}
+                lootedItems = {}
+                C_Timer.After(2, SnapshotAllParty)
+                print("|cFF9482C9ADHDBiS LootRadar:|r Dungeon detected - tracking loot.")
+            end
+        elseif not inDungeon and not mythicPlusActive then
+            eventFrame:UnregisterEvent("CHAT_MSG_LOOT")
+        end
 
     elseif event == "CHALLENGE_MODE_START" then
         -- M+ started: take snapshot, go silent until completion
@@ -689,21 +704,20 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         C_Timer.After(2, SnapshotAllParty)
 
     elseif event == "CHALLENGE_MODE_COMPLETED" then
-        -- M+ done: wait for chest loot, then compare
-        print("|cFF9482C9ADHDBiS LootRadar:|r M+ completed! Scanning loot in 8 seconds...")
-        C_Timer.After(8, function()
-            if mythicPlusActive then
-                ComparePartyGear()
-                -- Re-enable loot tracking for after the run
-                mythicPlusActive = false
-                snapshotTaken = false
-            end
+        -- M+ done: immediately re-enable CHAT_MSG_LOOT to catch chest loot
+        mythicPlusActive = false
+        eventFrame:RegisterEvent("CHAT_MSG_LOOT")
+        print("|cFF9482C9ADHDBiS LootRadar:|r M+ completed! Tracking chest loot...")
+        -- Also do gear compare after delay (catches items that got equipped)
+        C_Timer.After(12, function()
+            ComparePartyGear()
+            snapshotTaken = false
         end)
 
     elseif event == "CHAT_MSG_LOOT" then
-        -- Only fires in non-M+ dungeons (M0, heroic)
+        -- Fires in non-M+ dungeons and after M+ chest opens
         local msg = ...
-        if msg and inDungeon and not mythicPlusActive then
+        if msg and inDungeon then
             OnLootMessage(msg)
         end
 
@@ -790,7 +804,11 @@ ns.ToggleLootRadar = function(subCmd)
             if #detectedUpgrades > 0 then
                 ShowLootRadarPanel()
             else
-                statusText:SetText("|cFF666666No upgrades detected yet.\nComplete a M+ dungeon to scan party loot.|r")
+                if inDungeon then
+                    statusText:SetText("|cFF666666No upgrades detected yet.\nLoot is being tracked - items will appear here.|r")
+                else
+                    statusText:SetText("|cFF666666No upgrades detected yet.\nEnter a dungeon or M+ to scan party loot.|r")
+                end
                 statusText:Show()
                 scrollFrame:Hide()
                 radarFrame:SetHeight(100)

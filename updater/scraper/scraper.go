@@ -123,6 +123,7 @@ func IcyVeinsURLs(classSlug string, spec ClassSpec) map[string]string {
 		"gear":     base + "-gear-best-in-slot",
 		"enchants": base + "-gems-enchants-consumables",
 		"talents":  base + talentSuffix,
+		"stats":    base + "-stat-priority",
 	}
 }
 
@@ -133,6 +134,7 @@ func WowheadURLs(classSlug string, spec ClassSpec) map[string]string {
 		"gear":     fmt.Sprintf("https://www.wowhead.com/guide/classes/%s/%s/bis-gear", classSlug, spec.Slug),
 		"enchants": fmt.Sprintf("https://www.wowhead.com/guide/classes/%s/%s/enchants-gems-pve-%s", classSlug, spec.Slug, spec.Role),
 		"talents":  fmt.Sprintf("https://www.wowhead.com/guide/classes/%s/%s/talent-builds-pve-%s", classSlug, spec.Slug, spec.Role),
+		"stats":    fmt.Sprintf("https://www.wowhead.com/guide/classes/%s/%s/stat-priority-pve-%s", classSlug, spec.Slug, spec.Role),
 	}
 }
 

@@ -14,11 +14,11 @@ import (
 	"adhdbis-updater/scraper"
 )
 
-const CompanionVersion = "1.6"
+const CompanionVersion = "1.7"
 
 const banner = `
 ╔═══════════════════════════════════════╗
-║     ADHDBiS Companion App v1.5       ║
+║     ADHDBiS Companion App v1.7       ║
 ║    BiS Data for any WoW Class        ║
 ╚═══════════════════════════════════════╝
 `
@@ -84,6 +84,23 @@ func main() {
 
 	fmt.Print(banner)
 	reader := bufio.NewReader(os.Stdin)
+
+	// Check for companion app updates
+	latestVer, downloadURL, isOutdated := generator.CheckCompanionUpdate(CompanionVersion)
+	if isOutdated {
+		fmt.Println("╔═══════════════════════════════════════════════════════╗")
+		fmt.Println("║  ⚠  YOUR COMPANION APP IS OUTDATED!                  ║")
+		fmt.Printf("║  Current: v%s → Latest: v%-27s║\n", CompanionVersion, latestVer)
+		fmt.Println("║                                                       ║")
+		fmt.Println("║  PLEASE DOWNLOAD THE NEW VERSION TO SCRAPE DATA       ║")
+		fmt.Printf("║  %-53s║\n", downloadURL)
+		fmt.Println("╚═══════════════════════════════════════════════════════╝")
+		fmt.Println()
+		fmt.Println("You must update to the latest version before scraping.")
+		fmt.Println("Press Enter to exit...")
+		reader.ReadString('\n')
+		os.Exit(1)
+	}
 
 	// Load or create config
 	cfg, err := config.EnsureConfig(reader)

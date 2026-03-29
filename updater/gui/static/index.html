@@ -655,6 +655,11 @@
       })
     })
     .then(function(r) {
+      if (r.status === 426) {
+        return r.json().then(function(data) {
+          throw { outdated: true, message: data.message, downloadUrl: data.downloadUrl };
+        });
+      }
       if (!r.ok) return r.text().then(function(t) { throw new Error(t); });
       return r.json();
     })
@@ -692,8 +697,23 @@
       startBtn.disabled = false;
       startBtn.classList.remove('running');
       startBtn.textContent = 'Update BiS Data';
-      statusText.textContent = 'Error: ' + err.message;
-      statusText.className = 'status-text error';
+      if (err.outdated) {
+        statusText.innerHTML = '<strong style="color:#ef4444;">YOUR COMPANION APP IS OUTDATED!</strong>';
+        statusText.className = 'status-text error';
+        logCard.classList.add('visible');
+        logArea.innerHTML = '';
+        appendLog('⚠ ' + err.message);
+        appendLog('');
+        appendLog('PLEASE DOWNLOAD THE NEW VERSION TO SCRAPE DATA:');
+        appendLog(err.downloadUrl);
+        summary.classList.add('visible');
+        summary.querySelector('.summary-title').textContent = 'Update Required';
+        summary.querySelector('.summary-title').style.color = '#ef4444';
+        summaryDetail.innerHTML = '<a href="' + err.downloadUrl + '" target="_blank" style="color:#8b5cf6; font-weight:700; font-size:1.1rem;">Download Latest Version</a>';
+      } else {
+        statusText.textContent = 'Error: ' + err.message;
+        statusText.className = 'status-text error';
+      }
     });
   });
 })();

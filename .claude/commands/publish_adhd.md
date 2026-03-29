@@ -114,10 +114,24 @@ Objavljeno:
 
 ## IMPORTANT RULES
 - NEVER create symlinks to WoW folder - always COPY files
-- Binaries go ONLY in `updater/binary/` - never in `updater/` root
+- Binaries go ONLY in `updater/binary/` - never in `updater/` root or `releases/`
 - CurseForge metadata MUST include `displayName` with version
 - Always check for old version strings with grep after bumping version
 - Website deploy uses FULL paths (not ~) because sudo runs as root
 - ALWAYS pre-load BiS data before packaging (Step 1) - users must have data on install
 - Addon zip in `addon/ADHDBiS.zip` - never in repo root
 - PWA is a SEPARATE project at /Volumes/Samsung 1TB/wowadd/ADHDPWA/ - do NOT touch it during addon publish
+
+## COMPANION VERSION - CRITICAL
+When the companion app (Go code) changes, you MUST increment the companion version and update it in ALL 3 locations:
+1. `updater/main.go` — `CompanionVersion` const AND the CLI banner string
+2. `updater/generator/generator.go` — `CompanionVersion` var (default value)
+3. `addon/ADHDBiS/ADHDBiS.lua` — `LATEST_COMPANION_VERSION` constant at top of file
+
+The companion app writes its version into `ADHDBiS_Data.lua` when scraping (`companionVersion = "X.Y"`).
+The addon compares `ADHDBiS_Data.companionVersion` with `LATEST_COMPANION_VERSION` on login and warns if outdated.
+If these are out of sync, users get false "outdated" warnings or miss real ones.
+
+Additionally, `version.json` in the repo root contains the latest companion version. The companion app fetches this from GitHub at startup and BLOCKS scraping if the local version is older. Update `version.json` whenever companion version changes.
+
+After ANY Go code change: bump version in all 3 Go/Lua locations + `version.json` -> rebuild ALL binaries -> re-scrape to embed new version in data -> copy addon to WoW -> zip addon. This is BLOCKING - never ship without doing all of these.

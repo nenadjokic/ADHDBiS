@@ -117,10 +117,35 @@ func StartServer(cfg *config.Config) {
 		json.NewEncoder(w).Encode(map[string]bool{"running": running})
 	})
 
+	// API: Check for companion app updates
+	mux.HandleFunc("/api/version-check", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		latestVer, downloadURL, isOutdated := generator.CheckCompanionUpdate(generator.CompanionVersion)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"current":     generator.CompanionVersion,
+			"latest":      latestVer,
+			"downloadUrl": downloadURL,
+			"outdated":    isOutdated,
+		})
+	})
+
 	// API: Start scrape
 	mux.HandleFunc("/api/scrape", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			http.Error(w, "POST only", 405)
+			return
+		}
+
+		// Check for updates before scraping
+		latestVer, downloadURL, isOutdated := generator.CheckCompanionUpdate(generator.CompanionVersion)
+		if isOutdated {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(426) // Upgrade Required
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":       "OUTDATED_VERSION",
+				"message":     fmt.Sprintf("Your Companion App (v%s) is outdated. Latest is v%s. Please download the new version to scrape data.", generator.CompanionVersion, latestVer),
+				"downloadUrl": downloadURL,
+			})
 			return
 		}
 

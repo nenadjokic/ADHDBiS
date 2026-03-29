@@ -37,6 +37,31 @@ func FetchLatestVersion() string {
 	return tag
 }
 
+// CheckCompanionUpdate checks if this companion app is outdated by fetching version.json from GitHub.
+// Returns (latestVersion, downloadURL, isOutdated). If check fails, isOutdated = false (don't block on network issues).
+func CheckCompanionUpdate(currentVersion string) (string, string, bool) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get("https://raw.githubusercontent.com/nenadjokic/ADHDBiS/main/version.json")
+	if err != nil {
+		return "", "", false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", "", false
+	}
+	var result struct {
+		CompanionVersion string `json:"companion_version"`
+		DownloadURL      string `json:"download_url"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", "", false
+	}
+	if result.CompanionVersion == "" || result.CompanionVersion == currentVersion {
+		return result.CompanionVersion, result.DownloadURL, false
+	}
+	return result.CompanionVersion, result.DownloadURL, true
+}
+
 // luaEscape escapes a string for safe embedding in Lua source.
 func luaEscape(s string) string {
 	s = strings.ReplaceAll(s, "\\", "\\\\")
@@ -105,7 +130,7 @@ func embellishmentsToEnchants(embellishments []scraper.GearItem) []scraper.Encha
 
 // GenerateLua creates ADHDBiS_Data.lua from scraped data and writes it to the AddOns folder.
 // CompanionVersion is set by the caller (main.go)
-var CompanionVersion = "1.6"
+var CompanionVersion = "1.7"
 
 func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, addOnsPath string, source string) error {
 	var sb strings.Builder

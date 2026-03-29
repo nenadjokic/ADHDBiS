@@ -129,12 +129,35 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
+    <!-- === v1.6.2 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.6.2</span>
+            <span class="release-date">March 29, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">Improvements</p>
+        <ul>
+            <li><strong>Stat priority display</strong> &mdash; Overview now shows stat priority scraped from dedicated stat pages on both Icy Veins and Wowhead</li>
+            <li><strong>Enchant check icons</strong> &mdash; Enchant column now uses WoW's native ReadyCheck icons (green checkmark / red X) instead of broken Unicode characters</li>
+            <li><strong>Overview remembers size</strong> &mdash; Overview window saves and restores its width and height between sessions</li>
+            <li><strong>Shoulders enchantable</strong> &mdash; Shoulder slot now correctly tracked in enchant audit</li>
+        </ul>
+
+        <p class="release-section">Companion App v1.7</p>
+        <ul>
+            <li><strong>Stat priority from dedicated pages</strong> &mdash; Scrapes stat priority from the dedicated stat priority page instead of enchants page (both sites moved the data)</li>
+            <li><strong>Unicode sanitization</strong> &mdash; Replaces characters that WoW fonts can't render (e.g., ≅ → ~=) so stat priority displays correctly in-game</li>
+            <li><strong>Update check</strong> &mdash; Companion app now checks for updates before scraping. Outdated versions are blocked with a download link</li>
+        </ul>
+    </div>
+
     <!-- === v1.6.1 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.6.1</span>
             <span class="release-date">March 28, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">Improvements</p>

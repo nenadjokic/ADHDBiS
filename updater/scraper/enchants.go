@@ -114,6 +114,32 @@ func ParseStatPriority(body []byte) string {
 
 	if result != "" {
 		logf("    Found stat priority (fallback): %s\n", result)
+		return result
+	}
+
+	// Strategy 3: Look for ordered lists containing stat names
+	doc.Find("ol").Each(func(i int, ol *goquery.Selection) {
+		if result != "" {
+			return
+		}
+		var stats []string
+		ol.Find("li").Each(func(j int, li *goquery.Selection) {
+			text := strings.TrimSpace(li.Text())
+			textLower := strings.ToLower(text)
+			for _, stat := range statNames {
+				if strings.Contains(textLower, strings.ToLower(stat)) {
+					stats = append(stats, text)
+					break
+				}
+			}
+		})
+		if len(stats) >= 3 {
+			result = sanitizeStatPriority(strings.Join(stats, " > "))
+		}
+	})
+
+	if result != "" {
+		logf("    Found stat priority (ordered list): %s\n", result)
 	}
 	return result
 }
@@ -133,22 +159,129 @@ func containsStatPriority(text string) bool {
 	return statCount >= 3
 }
 
+// sanitizeStatPriority replaces Unicode characters that WoW fonts can't render.
+func sanitizeStatPriority(s string) string {
+	s = strings.ReplaceAll(s, "\u2245", "~=") // ≅ (approximately equal)
+	s = strings.ReplaceAll(s, "\u2248", "~=") // ≈ (almost equal)
+	s = strings.ReplaceAll(s, "\u2265", ">=") // ≥ (greater than or equal)
+	s = strings.ReplaceAll(s, "\u2264", "<=") // ≤ (less than or equal)
+	return s
+}
+
 // extractStatPriority pulls out the stat priority substring from a longer text.
 func extractStatPriority(text string) string {
 	// Try regex first
 	m := statPriorityRe.FindString(text)
 	if m != "" {
-		return strings.TrimSpace(m)
+		return sanitizeStatPriority(strings.TrimSpace(m))
 	}
 
 	// Fallback: find the line containing > and stat names
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
 		if containsStatPriority(line) && len(line) < 200 {
-			return line
+			return sanitizeStatPriority(line)
 		}
 	}
 	return ""
+}
+
+// ParseWowheadStatPriorityPage extracts stat priority from a dedicated Wowhead stat priority page.
+// Wowhead's stat priority pages use ordered lists like:
+//
+//	[ol][li]Intellect[/li][li]Mastery=Critical Strike[/li][li]Haste[/li][li]Versatility[/li][/ol]
+func ParseWowheadStatPriorityPage(body []byte) string {
+	markup := extractMarkup(body)
+	if markup == "" {
+		return ""
+	}
+
+	// Try ordered list [ol]...[/ol] first (most structured/reliable)
+	olStart := strings.Index(strings.ToLower(markup), "[ol]")
+	olEnd := strings.Index(strings.ToLower(markup), "[/ol]")
+	if olStart >= 0 && olEnd > olStart {
+		olContent := markup[olStart+4 : olEnd]
+		// Extract [li] items
+		var stats []string
+		parts := strings.Split(olContent, "[li]")
+		for _, part := range parts {
+			// Remove closing [/li] and clean up
+			item := strings.Split(part, "[/li]")[0]
+			item = stripBBCode(item)
+			item = strings.TrimSpace(item)
+			if item == "" {
+				continue
+			}
+			// Check if this item contains a stat name
+			itemLower := strings.ToLower(item)
+			hasStat := false
+			for _, stat := range statNames {
+				if strings.Contains(itemLower, strings.ToLower(stat)) {
+					hasStat = true
+					break
+				}
+			}
+			if hasStat {
+				stats = append(stats, item)
+			}
+		}
+		if len(stats) >= 3 {
+			result := sanitizeStatPriority(strings.Join(stats, " > "))
+			logf("    Found stat priority (Wowhead stats page list): %s\n", result)
+			return result
+		}
+	}
+
+	// Try regex on markup lines (handles "Stat > Stat > Stat" format)
+	lines := strings.Split(markup, "\n")
+	for _, line := range lines {
+		if containsStatPriority(line) {
+			result := extractStatPriority(line)
+			if result != "" {
+				logf("    Found stat priority (Wowhead stats page regex): %s\n", result)
+				return result
+			}
+		}
+	}
+
+	// Also try HTML <ol>/<li> in case the page renders as HTML
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	if err != nil {
+		return ""
+	}
+	var htmlResult string
+	doc.Find("ol").Each(func(i int, ol *goquery.Selection) {
+		if htmlResult != "" {
+			return
+		}
+		var stats []string
+		ol.Find("li").Each(func(j int, li *goquery.Selection) {
+			text := strings.TrimSpace(li.Text())
+			textLower := strings.ToLower(text)
+			for _, stat := range statNames {
+				if strings.Contains(textLower, strings.ToLower(stat)) {
+					stats = append(stats, text)
+					break
+				}
+			}
+		})
+		if len(stats) >= 3 {
+			htmlResult = sanitizeStatPriority(strings.Join(stats, " > "))
+		}
+	})
+	if htmlResult != "" {
+		logf("    Found stat priority (Wowhead stats page HTML): %s\n", htmlResult)
+		return htmlResult
+	}
+
+	return ""
+}
+
+// stripBBCode removes common BBCode tags from text.
+func stripBBCode(s string) string {
+	// Remove [b], [/b], [i], [/i], [u], [/u], [url=...], [/url], etc.
+	re := regexp.MustCompile(`\[/?[a-zA-Z][^\]]*\]`)
+	return re.ReplaceAllString(s, "")
 }
 
 // ParseEnchants parses enchants, gems, and consumables from an Icy Veins page.

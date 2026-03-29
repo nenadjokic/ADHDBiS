@@ -129,7 +129,7 @@ func RunScrape(req ScrapeRequest, logWriter io.Writer) *ScrapeResult {
 						result.TotalItems += len(ench) + len(gems) + len(cons)
 					}
 
-					// Try to extract stat priority from the enchants page
+					// Try to extract stat priority from the enchants page (legacy fallback)
 					if useWowhead {
 						specData.StatPriority = ParseWowheadStatPriority(enchBody)
 					} else {
@@ -137,6 +137,27 @@ func RunScrape(req ScrapeRequest, logWriter io.Writer) *ScrapeResult {
 					}
 				}
 				Delay()
+
+				// Stat Priority (dedicated page) — overwrites enchants-page extraction if found
+				if specData.StatPriority == "" {
+					logf("  Fetching stat priority... (%s)\n", urls["stats"])
+					statsBody, err := FetchPage(urls["stats"])
+					if err != nil {
+						logf("  Warning: %v\n", err)
+					}
+					if statsBody != nil {
+						var prio string
+						if useWowhead {
+							prio = ParseWowheadStatPriorityPage(statsBody)
+						} else {
+							prio = ParseStatPriority(statsBody)
+						}
+						if prio != "" {
+							specData.StatPriority = prio
+						}
+					}
+					Delay()
+				}
 
 				// Talents
 				logf("  Fetching talents... (%s)\n", urls["talents"])
