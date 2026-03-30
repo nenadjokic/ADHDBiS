@@ -723,11 +723,153 @@ local raidBtn = CreateGearToggle("Raid", "raid", overallBtn)
 local mplusBtn = CreateGearToggle("M+", "mythicplus", raidBtn)
 
 -- ============================================================
+-- GEAR FILTER BAR (All | Missing | In Bag | Upgradeable)
+-- ============================================================
+
+local selectedGearFilter = "all"  -- "all", "missing", "in_bag", "equipped_low"
+local selectedGearSort = "slot"   -- "slot", "status", "source"
+
+local gearFilterFrame = CreateFrame("Frame", nil, mainFrame)
+gearFilterFrame:SetHeight(42)
+gearFilterFrame:SetPoint("TOPLEFT", gearToggleFrame, "BOTTOMLEFT", 0, -2)
+gearFilterFrame:SetPoint("RIGHT", mainFrame, "RIGHT", -8, 0)
+gearFilterFrame:Hide()
+
+-- Progress summary text
+local progressSummary = gearFilterFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+progressSummary:SetPoint("TOPLEFT", gearFilterFrame, "TOPLEFT", 0, 0)
+progressSummary:SetPoint("RIGHT", gearFilterFrame, "RIGHT", 0, 0)
+progressSummary:SetJustifyH("LEFT")
+
+-- Progress bar background
+local progressBarBg = gearFilterFrame:CreateTexture(nil, "BACKGROUND")
+progressBarBg:SetHeight(4)
+progressBarBg:SetPoint("TOPLEFT", progressSummary, "BOTTOMLEFT", 0, -2)
+progressBarBg:SetPoint("RIGHT", gearFilterFrame, "RIGHT", 0, 0)
+progressBarBg:SetColorTexture(0.15, 0.15, 0.2, 0.8)
+
+-- Progress bar fill
+local progressBarFill = gearFilterFrame:CreateTexture(nil, "ARTWORK")
+progressBarFill:SetHeight(4)
+progressBarFill:SetPoint("TOPLEFT", progressBarBg, "TOPLEFT", 0, 0)
+progressBarFill:SetColorTexture(0, 0.8, 0, 1)
+
+-- Filter buttons row
+local filterBtnFrame = CreateFrame("Frame", nil, gearFilterFrame)
+filterBtnFrame:SetHeight(18)
+filterBtnFrame:SetPoint("TOPLEFT", progressBarBg, "BOTTOMLEFT", 0, -3)
+filterBtnFrame:SetPoint("RIGHT", gearFilterFrame, "RIGHT", 0, 0)
+
+local filterButtons = {}
+local FILTER_DEFS = {
+    { key = "all",          label = "All" },
+    { key = "missing",      label = "Missing" },
+    { key = "in_bag",       label = "In Bag" },
+    { key = "equipped_low", label = "Upgradeable" },
+}
+
+local prevBtn
+for _, def in ipairs(FILTER_DEFS) do
+    local btn = CreateFrame("Button", nil, filterBtnFrame)
+    btn:SetSize(68, 16)
+    if prevBtn then
+        btn:SetPoint("LEFT", prevBtn, "RIGHT", 3, 0)
+    else
+        btn:SetPoint("LEFT", filterBtnFrame, "LEFT", 0, 0)
+    end
+    local bg = btn:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.2, 0.2, 0.3, 0.6)
+    btn.bg = bg
+    local text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    text:SetPoint("CENTER")
+    text:SetText(def.label)
+    btn.label = text
+    btn.filterKey = def.key
+    btn:SetScript("OnClick", function()
+        selectedGearFilter = def.key
+        ns.RefreshContent()
+    end)
+    filterButtons[def.key] = btn
+    prevBtn = btn
+end
+
+-- Sort buttons (right-aligned on same row as filter)
+local sortButtons = {}
+local SORT_DEFS = {
+    { key = "slot",   label = "Slot" },
+    { key = "status", label = "Status" },
+    { key = "source", label = "Source" },
+}
+
+local sortLabel = filterBtnFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+sortLabel:SetPoint("RIGHT", filterBtnFrame, "RIGHT", 0, 0)
+sortLabel:SetTextColor(0.5, 0.5, 0.5, 1)
+sortLabel:SetText("Sort:")
+
+local prevSortBtn = sortLabel
+for idx = #SORT_DEFS, 1, -1 do
+    local def = SORT_DEFS[idx]
+    local btn = CreateFrame("Button", nil, filterBtnFrame)
+    btn:SetSize(48, 16)
+    btn:SetPoint("RIGHT", prevSortBtn, "LEFT", -3, 0)
+    local bg = btn:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.2, 0.2, 0.3, 0.6)
+    btn.bg = bg
+    local text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    text:SetPoint("CENTER")
+    text:SetText(def.label)
+    btn.label = text
+    btn.sortKey = def.key
+    btn:SetScript("OnClick", function()
+        selectedGearSort = def.key
+        ns.RefreshContent()
+    end)
+    sortButtons[def.key] = btn
+    prevSortBtn = btn
+end
+
+-- Update filter + sort button highlights
+local function UpdateFilterButtons()
+    local activeBg = {0.4, 0.2, 0.6, 0.7}
+    local inactiveBg = {0.2, 0.2, 0.3, 0.6}
+    for key, btn in pairs(filterButtons) do
+        btn.bg:SetColorTexture(unpack(key == selectedGearFilter and activeBg or inactiveBg))
+    end
+    for key, btn in pairs(sortButtons) do
+        btn.bg:SetColorTexture(unpack(key == selectedGearSort and activeBg or inactiveBg))
+    end
+end
+
+-- Update progress summary with gear stats
+local function UpdateGearProgress(stats)
+    local total = stats.total or 0
+    if total == 0 then
+        progressSummary:SetText("")
+        progressBarFill:SetWidth(0.01)
+        return
+    end
+    local pct = math.floor(((stats.equipped_bis or 0) / total) * 100)
+    local text = "|cFF00FF00\226\156\147 " .. (stats.equipped_bis or 0) .. " BiS|r"
+        .. "  |cFFFFFF00\226\134\145 " .. (stats.equipped_low or 0) .. " upgrade|r"
+        .. "  |cFF4488FF\226\151\143 " .. (stats.in_bag or 0) .. " in bags|r"
+        .. "  |cFFFF4444\226\156\151 " .. (stats.missing or 0) .. " missing|r"
+        .. "  |cFFFFFFFF(" .. pct .. "%)|r"
+    progressSummary:SetText(text)
+    -- Update bar width
+    local barWidth = progressBarBg:GetWidth()
+    if barWidth and barWidth > 0 then
+        progressBarFill:SetWidth(math.max(0.01, barWidth * (pct / 100)))
+    end
+end
+
+-- ============================================================
 -- SCROLL FRAME
 -- ============================================================
 
 local scrollFrame = CreateFrame("ScrollFrame", "ADHDBiSScrollFrame", mainFrame, "UIPanelScrollFrameTemplate")
-scrollFrame:SetPoint("TOPLEFT", gearToggleFrame, "BOTTOMLEFT", 0, -4)
+scrollFrame:SetPoint("TOPLEFT", gearFilterFrame, "BOTTOMLEFT", 0, -4)
 scrollFrame:SetPoint("BOTTOMRIGHT", mainFrame, "BOTTOMRIGHT", -28, 24)
 
 local scrollChild = CreateFrame("Frame", nil, scrollFrame)
@@ -1350,11 +1492,15 @@ local function HideAllRows()
     end
 end
 
+-- Forward declaration (defined after vault bar pool creation)
+local HideAllVaultBars
+
 local function HideAll()
     HideAllRows()
     HideAllGridCells()
     HideAllListRows()
     HideAllSectionHeaders()
+    if HideAllVaultBars then HideAllVaultBars() end
 end
 
 -- ============================================================
@@ -1427,6 +1573,62 @@ local function RenderGear()
     -- Ensure bag cache is fresh
     if bagCacheDirty then ScanBags() end
 
+    -- Pre-compute states for all items (needed for filter + progress)
+    local itemStates = {}
+    local stats = { total = #gearList, equipped_bis = 0, equipped_low = 0, in_bag = 0, missing = 0 }
+    for _, item in ipairs(gearList) do
+        local bisIlvl = GetItemIlvl(item.itemID, item.bonusIDs, (item.ilvl and item.ilvl > 0) and item.ilvl or nil)
+        local state = GetItemBiSState(item.itemID, item.slot, bisIlvl, item.bonusIDs)
+        itemStates[item] = { state = state, bisIlvl = bisIlvl }
+        stats[state] = (stats[state] or 0) + 1
+    end
+
+    -- Update progress summary bar
+    UpdateGearProgress(stats)
+
+    -- Apply filter
+    local displayList = {}
+    for _, item in ipairs(gearList) do
+        local state = itemStates[item].state
+        if selectedGearFilter == "all"
+            or selectedGearFilter == state
+            or (selectedGearFilter == "equipped_low" and state == "equipped_low") then
+            displayList[#displayList + 1] = item
+        end
+    end
+
+    -- Sort display list
+    if selectedGearSort == "status" then
+        local STATE_ORDER = { missing = 1, in_bag = 2, equipped_low = 3, equipped_bis = 4 }
+        table.sort(displayList, function(a, b)
+            local sa = STATE_ORDER[itemStates[a].state] or 5
+            local sb = STATE_ORDER[itemStates[b].state] or 5
+            return sa < sb
+        end)
+    elseif selectedGearSort == "source" then
+        table.sort(displayList, function(a, b)
+            return (a.source or "") < (b.source or "")
+        end)
+    end
+    -- "slot" sort = default order from data, no sorting needed
+
+    -- Show "no items match filter" message
+    if #displayList == 0 and selectedGearFilter ~= "all" then
+        local row = GetListRow(1)
+        row.nameText:SetText("|cFF888888No items match this filter.|r")
+        row.sourceText:SetText("")
+        row.icon:SetTexture(nil)
+        row.borderTex:SetColorTexture(0, 0, 0, 0)
+        row.statusIcon:Hide()
+        row.wishlistStar:Hide()
+        row.itemID = nil
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, 0)
+        row:SetPoint("RIGHT", scrollChild, "RIGHT", 0, 0)
+        scrollChild:SetHeight(LIST_ROW_HEIGHT)
+        return
+    end
+
     local frameWidth = scrollChild:GetWidth()
     local useTwoCols = frameWidth >= 400
     local colWidth = useTwoCols and math.floor((frameWidth - LIST_COL_GAP) / 2) or frameWidth
@@ -1436,9 +1638,9 @@ local function RenderGear()
 
     -- BiS progress counter
     local totalItems = #gearList
-    local equippedCount = 0
+    local equippedCount = stats.equipped_bis or 0
 
-    for i, item in ipairs(gearList) do
+    for i, item in ipairs(displayList) do
         rowIndex = rowIndex + 1
         local row = GetListRow(rowIndex)
 
@@ -1452,9 +1654,9 @@ local function RenderGear()
         -- Icon
         row.icon:SetTexture(GetItemIcon(item.itemID))
 
-        -- 4-state status
-        local bisIlvl = GetItemIlvl(item.itemID, item.bonusIDs, (item.ilvl and item.ilvl > 0) and item.ilvl or nil)
-        local state = GetItemBiSState(item.itemID, item.slot, bisIlvl, item.bonusIDs)
+        -- 4-state status (pre-computed)
+        local bisIlvl = itemStates[item].bisIlvl
+        local state = itemStates[item].state
 
         if state == "equipped_bis" then
             row.borderTex:SetColorTexture(0, 0.7, 0, 1)  -- green
@@ -1463,7 +1665,6 @@ local function RenderGear()
             row.statusIcon:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
             row.statusIcon:SetVertexColor(1, 1, 1, 1)
             row.statusIcon:Show()
-            equippedCount = equippedCount + 1
         elseif state == "equipped_low" then
             row.borderTex:SetColorTexture(0.9, 0.7, 0, 1)  -- yellow
             row.icon:SetAlpha(0.7)
@@ -1471,7 +1672,6 @@ local function RenderGear()
             row.statusIcon:SetTexture("Interface\\RaidFrame\\ReadyCheck-Waiting")
             row.statusIcon:SetVertexColor(1, 1, 1, 1)
             row.statusIcon:Show()
-            equippedCount = equippedCount + 1
         elseif state == "in_bag" then
             row.borderTex:SetColorTexture(0, 0.4, 0.8, 1)  -- blue
             row.icon:SetAlpha(1)
@@ -1488,20 +1688,54 @@ local function RenderGear()
             row.statusIcon:Show()
         end
 
-        -- Item name (colored by quality)
+        -- Item name (colored by quality) + ilvl
         local itemName, _, qualColor = GetCachedItemInfo(item.itemID)
+        local nameStr
         if itemName then
-            row.nameText:SetText("|cFF" .. qualColor .. itemName .. "|r")
+            nameStr = "|cFF" .. qualColor .. itemName .. "|r"
         else
-            -- Fallback: use name from data file
-            row.nameText:SetText("|cFFA335EE" .. (item.name or "Loading...") .. "|r")
+            nameStr = "|cFFA335EE" .. (item.name or "Loading...") .. "|r"
         end
 
-        -- Drop source (with slot prefix)
+        -- Append ilvl with upgrade arrow
+        if bisIlvl and bisIlvl >= MIN_SANE_ILVL then
+            if state == "equipped_low" then
+                -- Show current → BiS ilvl
+                local slotID = SLOT_IDS[item.slot]
+                local equippedIlvl
+                if slotID then
+                    local eqLink = GetInventoryItemLink("player", slotID)
+                    if eqLink then equippedIlvl = GetDetailedItemLevelInfo(eqLink) end
+                end
+                if equippedIlvl then
+                    nameStr = nameStr .. "  |cFFFFFF00" .. equippedIlvl .. " \226\134\146 " .. bisIlvl .. "|r"
+                else
+                    nameStr = nameStr .. "  |cFF888888ilvl " .. bisIlvl .. "|r"
+                end
+            elseif state == "equipped_bis" then
+                nameStr = nameStr .. "  |cFF00FF00" .. bisIlvl .. "|r"
+            else
+                nameStr = nameStr .. "  |cFF888888ilvl " .. bisIlvl .. "|r"
+            end
+        end
+        row.nameText:SetText(nameStr)
+
+        -- Drop source (with slot prefix + source type icon)
         local sourceStr = item.source or ""
         local slotName = item.slot or ""
+        local sourceIcon = ""
+        local srcLower = sourceStr:lower()
+        if srcLower:find("catalyst") or srcLower:find("craft") then
+            sourceIcon = "|TInterface\\Icons\\Trade_BlackSmithing:12:12:0:0|t "
+        elseif srcLower:find("raid") or srcLower:find("voidspire") or srcLower:find("darkflame") or srcLower:find("boss") then
+            sourceIcon = "|TInterface\\TargetingFrame\\UI-RaidTargetingIcon_8:12:12:0:0|t "
+        elseif srcLower:find("mythic") or srcLower:find("m+") or srcLower:find("dungeon") or srcLower:find("keystone") then
+            sourceIcon = "|TInterface\\Icons\\INV_Relics_Hourglass:12:12:0:0|t "
+        elseif srcLower:find("world") or srcLower:find("delve") then
+            sourceIcon = "|TInterface\\Icons\\INV_Misc_Map_01:12:12:0:0|t "
+        end
         if sourceStr ~= "" then
-            row.sourceText:SetText(slotName .. ": " .. sourceStr)
+            row.sourceText:SetText(sourceIcon .. slotName .. ": " .. sourceStr)
         else
             row.sourceText:SetText(slotName)
         end
@@ -1540,7 +1774,7 @@ local function RenderGear()
     -- Calculate total height
     local totalHeight
     if useTwoCols then
-        local numVisualRows = math.ceil(#gearList / 2)
+        local numVisualRows = math.ceil(#displayList / 2)
         totalHeight = numVisualRows * (LIST_ROW_HEIGHT + LIST_ROW_PADDING)
     else
         totalHeight = yOffset
@@ -1984,7 +2218,76 @@ local function RenderTalents()
 end
 
 -- VAULT TAB (Great Vault weekly progress)
+
+-- Vault visual bar pool (reusable StatusBar-like frames)
+local vaultBars = {}
+local function GetVaultBar(index)
+    if vaultBars[index] then
+        vaultBars[index]:Show()
+        return vaultBars[index]
+    end
+
+    local bar = CreateFrame("Frame", nil, scrollChild)
+    bar:SetHeight(36)
+
+    -- Background
+    local bg = bar:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.1, 0.1, 0.15, 0.6)
+    bar.bg = bg
+
+    -- Progress fill
+    local fill = bar:CreateTexture(nil, "ARTWORK")
+    fill:SetHeight(36)
+    fill:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, 0)
+    fill:SetColorTexture(0.2, 0.6, 0.2, 0.5)
+    bar.fill = fill
+
+    -- Slot label (left)
+    local slotLabel = bar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    slotLabel:SetPoint("LEFT", bar, "LEFT", 6, 0)
+    slotLabel:SetJustifyH("LEFT")
+    bar.slotLabel = slotLabel
+
+    -- Status text (right)
+    local statusText = bar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    statusText:SetPoint("RIGHT", bar, "RIGHT", -6, 0)
+    statusText:SetJustifyH("RIGHT")
+    bar.statusText = statusText
+
+    -- ilvl text (center-right)
+    local ilvlText = bar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ilvlText:SetPoint("RIGHT", statusText, "LEFT", -8, 0)
+    ilvlText:SetJustifyH("RIGHT")
+    bar.ilvlText = ilvlText
+
+    -- BiS indicator
+    local bisText = bar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    bisText:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 6, 2)
+    bisText:SetJustifyH("LEFT")
+    bar.bisText = bisText
+
+    -- Gold border for unlocked
+    local border = bar:CreateTexture(nil, "OVERLAY")
+    border:SetPoint("TOPLEFT", bar, "TOPLEFT", -1, 1)
+    border:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 1, -1)
+    border:SetColorTexture(0.8, 0.65, 0, 0.6)
+    border:Hide()
+    bar.goldBorder = border
+
+    vaultBars[index] = bar
+    return bar
+end
+
+HideAllVaultBars = function()
+    for _, bar in ipairs(vaultBars) do
+        bar:Hide()
+    end
+end
+
 local function RenderVault()
+    HideAllVaultBars()
+
     if not C_WeeklyRewards then
         local row = GetRow(1)
         row.text:SetText("|cFFFF4444Weekly Vault data not available.|r")
@@ -1994,20 +2297,48 @@ local function RenderVault()
     end
 
     local rowIndex = 0
+    local barIndex = 0
+    local yOffset = 0
 
     -- Check if vault is ready to claim
-    if C_WeeklyRewards.CanClaimRewards() then
+    local canClaim = C_WeeklyRewards.CanClaimRewards()
+    if canClaim then
         rowIndex = rowIndex + 1
         local row = GetRow(rowIndex)
-        row.text:SetText("|cFFFFD100>> Your Great Vault is ready to open! <<|r")
+        row.text:SetText("|cFFFFD100\226\152\133 Your Great Vault is ready to open! \226\152\133|r")
         row.itemID = nil
+        yOffset = yOffset + ROW_HEIGHT
         rowIndex = rowIndex + 1
         local spacer = GetRow(rowIndex)
         spacer.text:SetText("")
         spacer.itemID = nil
+        yOffset = yOffset + ROW_HEIGHT
     end
 
-    -- Helper: get ilvl from vault reward item links (reads actual reward from API)
+    -- Weekly reset countdown
+    local resetSeconds = C_DateAndTime and C_DateAndTime.GetSecondsUntilWeeklyReset and C_DateAndTime.GetSecondsUntilWeeklyReset()
+    if resetSeconds and resetSeconds > 0 then
+        local days = math.floor(resetSeconds / 86400)
+        local hours = math.floor((resetSeconds % 86400) / 3600)
+        local mins = math.floor((resetSeconds % 3600) / 60)
+        local countdownStr = ""
+        if days > 0 then countdownStr = days .. "d " end
+        countdownStr = countdownStr .. hours .. "h " .. mins .. "m"
+
+        rowIndex = rowIndex + 1
+        local row = GetRow(rowIndex)
+        row.text:SetText("|cFF888888Vault resets in: |cFFFFFFFF" .. countdownStr .. "|r")
+        row.itemID = nil
+        yOffset = yOffset + ROW_HEIGHT
+    end
+
+    -- Summary: count total unlocked
+    local totalUnlocked = 0
+    local totalSlots = 0
+    local bestIlvl = 0
+    local bestSource = ""
+
+    -- Helper: get ilvl from vault reward item links
     local function GetRewardIlvl(activityID)
         if not activityID then return nil end
         local link = C_WeeklyRewards.GetExampleRewardItemHyperlinks(activityID)
@@ -2031,93 +2362,199 @@ local function RenderVault()
         return tostring(level)
     end
 
-    -- Helper: render one activity type
-    local function RenderActivity(title, thresholdType)
+    -- Helper: check if an ilvl could contain BiS items for player
+    local function CheckVaultBiSPotential(ilvl)
+        if not ilvl or not bisLookup then return false end
+        local playerClass = UnitClass("player")
+        for itemID, entries in pairs(bisLookup) do
+            for _, entry in ipairs(entries) do
+                if entry.class == playerClass then
+                    -- Check if this item's expected ilvl matches vault reward ilvl
+                    local bisIlvl = entry.ilvl
+                    if not bisIlvl or bisIlvl == 0 then
+                        -- Try ilvl cache
+                        for k, v in pairs(ilvlCache) do
+                            if k:match("^" .. itemID .. ":") then
+                                bisIlvl = v
+                                break
+                            end
+                        end
+                    end
+                    if bisIlvl and bisIlvl > 0 and ilvl >= bisIlvl then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+
+    -- Pre-scan all activities for summary
+    local activityTypes = {
+        { title = "Raids",   type = Enum.WeeklyRewardChestThresholdType.Raid },
+        { title = "Mythic+", type = Enum.WeeklyRewardChestThresholdType.Activities },
+        { title = "Delves",  type = Enum.WeeklyRewardChestThresholdType.World },
+    }
+
+    for _, actType in ipairs(activityTypes) do
+        local activities = C_WeeklyRewards.GetActivities(actType.type)
+        if activities then
+            for _, act in ipairs(activities) do
+                totalSlots = totalSlots + 1
+                if (act.progress or 0) >= (act.threshold or 1) then
+                    totalUnlocked = totalUnlocked + 1
+                    local ilvl = GetRewardIlvl(act.id)
+                    if ilvl and ilvl > bestIlvl then
+                        bestIlvl = ilvl
+                        bestSource = actType.title
+                    end
+                end
+            end
+        end
+    end
+
+    -- Summary row
+    rowIndex = rowIndex + 1
+    local summaryRow = GetRow(rowIndex)
+    local summaryText = "|cFFFFFFFFThis Week: |cFF00FF00" .. totalUnlocked .. "/" .. totalSlots .. " slots unlocked|r"
+    if bestIlvl > 0 then
+        summaryText = summaryText .. "  |cFFFFD100Best: ilvl " .. bestIlvl .. " (" .. bestSource .. ")|r"
+    end
+    summaryRow.text:SetText(summaryText)
+    summaryRow.itemID = nil
+    yOffset = yOffset + ROW_HEIGHT
+
+    rowIndex = rowIndex + 1
+    local spacer = GetRow(rowIndex)
+    spacer.text:SetText("")
+    spacer.itemID = nil
+    yOffset = yOffset + ROW_HEIGHT
+
+    -- Render each activity type with visual bars
+    for _, actType in ipairs(activityTypes) do
+        -- Section header
         rowIndex = rowIndex + 1
         local hdr = GetRow(rowIndex)
-        hdr.text:SetText("|cFFFFD100-- " .. title .. " --|r")
+        hdr.text:SetText("|cFFFFD100-- " .. actType.title .. " --|r")
         hdr.itemID = nil
+        yOffset = yOffset + ROW_HEIGHT
 
-        local activities = C_WeeklyRewards.GetActivities(thresholdType)
+        local activities = C_WeeklyRewards.GetActivities(actType.type)
         if not activities or #activities == 0 then
             rowIndex = rowIndex + 1
             local row = GetRow(rowIndex)
             row.text:SetText("  |cFF888888No data available|r")
             row.itemID = nil
-            return
-        end
+            yOffset = yOffset + ROW_HEIGHT
+        else
+            table.sort(activities, function(a, b) return a.threshold < b.threshold end)
 
-        -- Sort by threshold ascending
-        table.sort(activities, function(a, b) return a.threshold < b.threshold end)
+            for i, activity in ipairs(activities) do
+                barIndex = barIndex + 1
+                local bar = GetVaultBar(barIndex)
 
-        for i, activity in ipairs(activities) do
-            rowIndex = rowIndex + 1
-            local row = GetRow(rowIndex)
+                local progress = activity.progress or 0
+                local threshold = activity.threshold or 1
+                local level = activity.level or 0
+                local unlocked = progress >= threshold
+                local ilvl = GetRewardIlvl(activity.id)
 
-            local progress = activity.progress or 0
-            local threshold = activity.threshold or 1
-            local level = activity.level or 0
-            local unlocked = progress >= threshold
+                -- Position bar
+                bar:ClearAllPoints()
+                bar:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -yOffset)
+                bar:SetPoint("RIGHT", scrollChild, "RIGHT", 0, 0)
 
-            -- Progress bar (text-based)
-            local barLen = 15
-            local filled = math.min(barLen, math.floor((progress / threshold) * barLen))
-            local bar = ""
-            for j = 1, barLen do
-                if j <= filled then
-                    bar = bar .. "|cFF00FF00|r"
-                else
-                    bar = bar .. "|cFF333333-|r"
-                end
-            end
+                -- Fill width
+                local fillPct = math.min(1, progress / threshold)
+                bar.fill:SetWidth(math.max(0.01, bar:GetWidth() * fillPct))
 
-            -- Get actual ilvl from API reward data
-            local ilvl = GetRewardIlvl(activity.id)
-            local ilvlStr = ""
-            if ilvl then
+                -- Colors based on state
                 if unlocked then
-                    ilvlStr = " |cFF00FF00ilvl " .. ilvl .. "|r"
+                    bar.fill:SetColorTexture(0.15, 0.5, 0.15, 0.6)
+                    bar.goldBorder:Show()
+                    bar.bg:SetColorTexture(0.08, 0.2, 0.08, 0.6)
                 else
-                    ilvlStr = " |cFF888888ilvl " .. ilvl .. "|r"
+                    bar.fill:SetColorTexture(0.3, 0.25, 0.5, 0.5)
+                    bar.goldBorder:Hide()
+                    bar.bg:SetColorTexture(0.1, 0.1, 0.15, 0.6)
                 end
-            end
 
-            -- Level info (human-readable)
-            local levelStr = ""
-            if level > 0 then
-                levelStr = " |cFF888888(" .. GetLevelLabel(thresholdType, level) .. ")|r"
-            end
+                -- Slot label
+                local levelStr = ""
+                if level > 0 then
+                    levelStr = " |cFF888888" .. GetLevelLabel(actType.type, level) .. "|r"
+                end
+                bar.slotLabel:SetText("Slot " .. i .. levelStr)
 
-            -- Status
-            local status
-            if unlocked then
-                status = "|cFF00FF00UNLOCKED|r"
-            else
-                status = "|cFFFFFFFF" .. progress .. "/" .. threshold .. "|r"
-            end
+                -- Status
+                if unlocked then
+                    bar.statusText:SetText("|cFF00FF00UNLOCKED|r")
+                else
+                    bar.statusText:SetText("|cFFFFFFFF" .. progress .. "/" .. threshold .. "|r")
+                end
 
-            row.text:SetText("  Slot " .. i .. ": " .. bar .. " " .. status .. ilvlStr .. levelStr)
-            row.itemID = nil
+                -- ilvl
+                if ilvl then
+                    if unlocked then
+                        bar.ilvlText:SetText("|cFF00FF00ilvl " .. ilvl .. "|r")
+                    else
+                        bar.ilvlText:SetText("|cFF888888ilvl " .. ilvl .. "|r")
+                    end
+                else
+                    bar.ilvlText:SetText("")
+                end
+
+                -- BiS potential indicator
+                if unlocked and ilvl and CheckVaultBiSPotential(ilvl) then
+                    bar.bisText:SetText("|cFFFFD100\226\152\133 Potential BiS upgrade|r")
+                else
+                    bar.bisText:SetText("")
+                end
+
+                yOffset = yOffset + 38  -- bar height + spacing
+            end
         end
 
-        rowIndex = rowIndex + 1
-        local spacer = GetRow(rowIndex)
-        spacer.text:SetText("")
-        spacer.itemID = nil
+        -- Spacer between sections
+        yOffset = yOffset + 4
     end
 
-    -- Render all 3 activity types
-    RenderActivity("Raids", Enum.WeeklyRewardChestThresholdType.Raid)
-    RenderActivity("Mythic+", Enum.WeeklyRewardChestThresholdType.Activities)
-    RenderActivity("Delves", Enum.WeeklyRewardChestThresholdType.World)
+    -- Vault pick recommendation (when claimable)
+    if canClaim then
+        rowIndex = rowIndex + 1
+        local recRow = GetRow(rowIndex)
+        -- Find best vault slot to pick
+        local bestSlot = nil
+        local bestSlotIlvl = 0
+        local bestSlotSource = ""
+        local bestSlotIdx = 0
+        for _, actType in ipairs(activityTypes) do
+            local activities = C_WeeklyRewards.GetActivities(actType.type)
+            if activities then
+                table.sort(activities, function(a, b) return a.threshold < b.threshold end)
+                for i, act in ipairs(activities) do
+                    if (act.progress or 0) >= (act.threshold or 1) then
+                        local ilvl = GetRewardIlvl(act.id)
+                        if ilvl and ilvl > bestSlotIlvl then
+                            bestSlotIlvl = ilvl
+                            bestSlotSource = actType.title
+                            bestSlotIdx = i
+                            bestSlot = act
+                        end
+                    end
+                end
+            end
+        end
+        if bestSlot and bestSlotIlvl > 0 then
+            recRow.text:SetText("|cFFFFD100Recommendation: Pick " .. bestSlotSource .. " Slot " .. bestSlotIdx .. " (ilvl " .. bestSlotIlvl .. ")|r")
+        else
+            recRow.text:SetText("")
+        end
+        recRow.itemID = nil
+        yOffset = yOffset + ROW_HEIGHT
+    end
 
-    -- Tip at the bottom
-    rowIndex = rowIndex + 1
-    local tip = GetRow(rowIndex)
-    tip.text:SetText("|cFF555555Vault resets weekly on Tuesday (US) / Wednesday (EU)|r")
-    tip.itemID = nil
-
-    scrollChild:SetHeight(math.max(1, rowIndex * ROW_HEIGHT))
+    scrollChild:SetHeight(math.max(1, yOffset))
 end
 
 -- ============================================================
@@ -2268,17 +2705,20 @@ function ns.RefreshContent()
         end
     end
 
-    -- Show/hide gear source toggle
+    -- Show/hide gear source toggle + filter bar
     if selectedTab == 1 then
         gearToggleFrame:Show()
+        gearFilterFrame:Show()
         local activeBg = {0.4, 0.2, 0.6, 0.7}
         local inactiveBg = {0.2, 0.2, 0.3, 0.6}
         overallBtn.bg:SetColorTexture(unpack(selectedGearSource == "overall" and activeBg or inactiveBg))
         raidBtn.bg:SetColorTexture(unpack(selectedGearSource == "raid" and activeBg or inactiveBg))
         mplusBtn.bg:SetColorTexture(unpack(selectedGearSource == "mythicplus" and activeBg or inactiveBg))
-        scrollFrame:SetPoint("TOPLEFT", gearToggleFrame, "BOTTOMLEFT", 0, -4)
+        UpdateFilterButtons()
+        scrollFrame:SetPoint("TOPLEFT", gearFilterFrame, "BOTTOMLEFT", 0, -2)
     else
         gearToggleFrame:Hide()
+        gearFilterFrame:Hide()
         scrollFrame:SetPoint("TOPLEFT", tabBar, "BOTTOMLEFT", 0, -4)
     end
 
@@ -2932,50 +3372,127 @@ local function HookTooltip()
     if tooltipHooked then return end
     tooltipHooked = true
 
-    -- Hook into TooltipDataProcessor for item tooltips (modern API, Midnight+)
-    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall then
-        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip, data)
-            if tooltip ~= GameTooltip then return end
-            if not data or not data.id then return end
+    -- Shared tooltip handler for all tooltip types
+    local function OnTooltipItem(tooltip, data)
+        if not data or not data.id then return end
 
-            local itemID = data.id
-            local entries = bisLookup[itemID]
-            if not entries then return end
+        local itemID = data.id
+        local entries = bisLookup[itemID]
+        if not entries then return end
 
-            local showAll = IsShiftKeyDown()
-            local playerClass = UnitClass("player")
+        local showAll = IsShiftKeyDown()
+        local playerClass = UnitClass("player")
 
-            -- Deduplicate and split by player class vs others
-            local seen = {}
-            local myLines = {}
-            local otherLines = {}
-            for _, entry in ipairs(entries) do
-                local key = entry.class .. entry.spec .. entry.gearSource
-                if not seen[key] then
-                    seen[key] = true
-                    local gsLabel = entry.gearSource == "mythicplus" and "M+" or "Raid"
-                    local line = "|cFF9482C9BiS:|r " .. entry.spec .. " " .. entry.class .. " |cFF888888(" .. gsLabel .. ")|r"
-                    if entry.class == playerClass then
-                        myLines[#myLines + 1] = line
+        -- Deduplicate and split by player class vs others
+        local seen = {}
+        local myEntries = {}
+        local otherLines = {}
+        for _, entry in ipairs(entries) do
+            local key = entry.class .. entry.spec .. entry.gearSource
+            if not seen[key] then
+                seen[key] = true
+                if entry.class == playerClass then
+                    myEntries[#myEntries + 1] = entry
+                else
+                    local gsLabel = entry.gearSource == "mythicplus" and "M+" or (entry.gearSource == "overall" and "Overall" or "Raid")
+                    otherLines[#otherLines + 1] = "|cFF9482C9BiS:|r " .. entry.spec .. " " .. entry.class .. " |cFF888888(" .. gsLabel .. ")|r"
+                end
+            end
+        end
+
+        -- Player's class: show with status indicator
+        if #myEntries > 0 then
+            -- Collect gear sources for badge
+            local gearSources = {}
+            for _, entry in ipairs(myEntries) do
+                local gs = entry.gearSource == "mythicplus" and "M+" or (entry.gearSource == "overall" and "Overall" or "Raid")
+                gearSources[gs] = true
+            end
+            local sourceList = {}
+            for gs in pairs(gearSources) do sourceList[#sourceList + 1] = gs end
+            table.sort(sourceList)
+
+            -- BiS badge line
+            local specName = myEntries[1].spec
+            local badge = "|cFF00FF00[BiS]|r " .. table.concat(sourceList, " + ") .. " - " .. specName .. " " .. playerClass
+            tooltip:AddLine(" ")
+            tooltip:AddLine(badge, 1, 1, 1)
+
+            -- Upgrade status: check if player has this item equipped
+            local slot = myEntries[1].slot
+            local slotID = SLOT_IDS[slot]
+            local bisIlvl = myEntries[1].ilvl
+            -- Try to get accurate BiS ilvl from ilvlCache or data
+            for k, v in pairs(ilvlCache) do
+                if k:match("^" .. itemID .. ":") then
+                    bisIlvl = v
+                    break
+                end
+            end
+
+            if slotID then
+                local equippedID = GetInventoryItemID("player", slotID)
+                if equippedID == itemID then
+                    -- Same item equipped - check ilvl
+                    local equippedLink = GetInventoryItemLink("player", slotID)
+                    if equippedLink then
+                        local equippedIlvl = GetDetailedItemLevelInfo(equippedLink)
+                        if equippedIlvl and bisIlvl and bisIlvl >= MIN_SANE_ILVL and equippedIlvl >= bisIlvl then
+                            tooltip:AddLine("|cFF00FF00\226\156\147 BiS equipped|r", 0, 1, 0)
+                        elseif equippedIlvl and bisIlvl and bisIlvl >= MIN_SANE_ILVL then
+                            tooltip:AddLine("|cFFFFFF00\226\134\145 Upgrade: your ilvl " .. equippedIlvl .. " \226\134\146 BiS ilvl " .. bisIlvl .. "|r", 1, 1, 0)
+                        else
+                            tooltip:AddLine("|cFF00FF00\226\156\147 BiS equipped|r", 0, 1, 0)
+                        end
+                    end
+                else
+                    -- Different item or nothing equipped
+                    if bagBiSCache[itemID] and bagBiSCache[itemID].inBag then
+                        tooltip:AddLine("|cFF4488FF\226\151\143 BiS item in your bags|r", 0.27, 0.53, 1)
                     else
-                        otherLines[#otherLines + 1] = line
+                        tooltip:AddLine("|cFFFF4444\226\156\151 Missing from your gear|r", 1, 0.27, 0.27)
                     end
                 end
             end
-            -- Player's class first (always shown)
-            for _, line in ipairs(myLines) do
+
+            -- Source info from data
+            if ADHDBiS_Data and ADHDBiS_Data.classes then
+                local classData = ADHDBiS_Data.classes[playerClass]
+                if classData then
+                    for _, sData in pairs(classData[specName] or {}) do
+                        if type(sData) == "table" and sData.gear then
+                            for _, gType in ipairs({"overall", "raid", "mythicplus"}) do
+                                local gl = sData.gear[gType]
+                                if gl then
+                                    for _, item in ipairs(gl) do
+                                        if item.itemID == itemID and item.source and item.source ~= "" then
+                                            tooltip:AddLine("|cFF888888Source: " .. item.source .. "|r", 0.5, 0.5, 0.5, true)
+                                            break
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Other classes: show with Shift, otherwise just count
+        if showAll then
+            for _, line in ipairs(otherLines) do
                 tooltip:AddLine(line, 1, 1, 1)
             end
-            -- Other classes: show with Shift, otherwise just count
-            if showAll then
-                for _, line in ipairs(otherLines) do
-                    tooltip:AddLine(line, 1, 1, 1)
-                end
-            elseif #otherLines > 0 then
-                tooltip:AddLine("|cFF888888+" .. #otherLines .. " other spec(s) - hold Shift|r", 0.5, 0.5, 0.5)
-            end
-            tooltip:Show()
-        end)
+        elseif #otherLines > 0 then
+            tooltip:AddLine("|cFF888888+" .. #otherLines .. " other spec(s) - hold Shift|r", 0.5, 0.5, 0.5)
+        end
+        tooltip:Show()
+    end
+
+    -- Hook into TooltipDataProcessor for item tooltips (modern API, Midnight+)
+    -- This hooks ALL tooltip types: GameTooltip, ItemRefTooltip, ShoppingTooltip, etc.
+    if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall then
+        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, OnTooltipItem)
     end
 end
 
