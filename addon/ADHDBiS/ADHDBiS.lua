@@ -765,7 +765,6 @@ local FILTER_DEFS = {
     { key = "all",          label = "All" },
     { key = "missing",      label = "Missing" },
     { key = "in_bag",       label = "In Bag" },
-    { key = "equipped_low", label = "Upgradeable" },
 }
 
 local prevBtn
@@ -851,10 +850,9 @@ local function UpdateGearProgress(stats)
         return
     end
     local pct = math.floor(((stats.equipped_bis or 0) / total) * 100)
-    local text = "|cFF00FF00\226\156\147 " .. (stats.equipped_bis or 0) .. " BiS|r"
-        .. "  |cFFFFFF00\226\134\145 " .. (stats.equipped_low or 0) .. " upgrade|r"
-        .. "  |cFF4488FF\226\151\143 " .. (stats.in_bag or 0) .. " in bags|r"
-        .. "  |cFFFF4444\226\156\151 " .. (stats.missing or 0) .. " missing|r"
+    local text = "|TInterface\\RaidFrame\\ReadyCheck-Ready:0|t |cFF00FF00" .. (stats.equipped_bis or 0) .. " BiS|r"
+        .. "  |cFF4488FF" .. (stats.in_bag or 0) .. " in bags|r"
+        .. "  |TInterface\\RaidFrame\\ReadyCheck-NotReady:0|t |cFFFF4444" .. (stats.missing or 0) .. " missing|r"
         .. "  |cFFFFFFFF(" .. pct .. "%)|r"
     progressSummary:SetText(text)
     -- Update bar width
@@ -1591,8 +1589,7 @@ local function RenderGear()
     for _, item in ipairs(gearList) do
         local state = itemStates[item].state
         if selectedGearFilter == "all"
-            or selectedGearFilter == state
-            or (selectedGearFilter == "equipped_low" and state == "equipped_low") then
+            or selectedGearFilter == state then
             displayList[#displayList + 1] = item
         end
     end
@@ -1708,7 +1705,7 @@ local function RenderGear()
                     if eqLink then equippedIlvl = GetDetailedItemLevelInfo(eqLink) end
                 end
                 if equippedIlvl then
-                    nameStr = nameStr .. "  |cFFFFFF00" .. equippedIlvl .. " \226\134\146 " .. bisIlvl .. "|r"
+                    nameStr = nameStr .. "  |cFFFFFF00" .. equippedIlvl .. " -> " .. bisIlvl .. "|r"
                 else
                     nameStr = nameStr .. "  |cFF888888ilvl " .. bisIlvl .. "|r"
                 end
@@ -2267,13 +2264,35 @@ local function GetVaultBar(index)
     bisText:SetJustifyH("LEFT")
     bar.bisText = bisText
 
-    -- Gold border for unlocked
-    local border = bar:CreateTexture(nil, "OVERLAY")
-    border:SetPoint("TOPLEFT", bar, "TOPLEFT", -1, 1)
-    border:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 1, -1)
-    border:SetColorTexture(0.8, 0.65, 0, 0.6)
-    border:Hide()
-    bar.goldBorder = border
+    -- Gold border for unlocked (4 thin edges)
+    local borderTop = bar:CreateTexture(nil, "OVERLAY")
+    borderTop:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, 1)
+    borderTop:SetPoint("TOPRIGHT", bar, "TOPRIGHT", 0, 1)
+    borderTop:SetHeight(1)
+    borderTop:SetColorTexture(0.8, 0.65, 0, 0.8)
+
+    local borderBottom = bar:CreateTexture(nil, "OVERLAY")
+    borderBottom:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, -1)
+    borderBottom:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, -1)
+    borderBottom:SetHeight(1)
+    borderBottom:SetColorTexture(0.8, 0.65, 0, 0.8)
+
+    local borderLeft = bar:CreateTexture(nil, "OVERLAY")
+    borderLeft:SetPoint("TOPLEFT", bar, "TOPLEFT", -1, 1)
+    borderLeft:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", -1, -1)
+    borderLeft:SetWidth(1)
+    borderLeft:SetColorTexture(0.8, 0.65, 0, 0.8)
+
+    local borderRight = bar:CreateTexture(nil, "OVERLAY")
+    borderRight:SetPoint("TOPRIGHT", bar, "TOPRIGHT", 1, 1)
+    borderRight:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 1, -1)
+    borderRight:SetWidth(1)
+    borderRight:SetColorTexture(0.8, 0.65, 0, 0.8)
+
+    bar.goldBorderEdges = { borderTop, borderBottom, borderLeft, borderRight }
+    bar.goldBorder = { Show = function() for _, e in ipairs(bar.goldBorderEdges) do e:Show() end end,
+                       Hide = function() for _, e in ipairs(bar.goldBorderEdges) do e:Hide() end end }
+    bar.goldBorder:Hide()
 
     vaultBars[index] = bar
     return bar
@@ -2300,16 +2319,24 @@ local function RenderVault()
     local barIndex = 0
     local yOffset = 0
 
+    -- Helper: get a text row and position it at yOffset
+    local function GetVaultRow()
+        rowIndex = rowIndex + 1
+        local row = GetRow(rowIndex)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -yOffset)
+        row:SetPoint("RIGHT", scrollChild, "RIGHT", 0, 0)
+        return row
+    end
+
     -- Check if vault is ready to claim
     local canClaim = C_WeeklyRewards.CanClaimRewards()
     if canClaim then
-        rowIndex = rowIndex + 1
-        local row = GetRow(rowIndex)
-        row.text:SetText("|cFFFFD100\226\152\133 Your Great Vault is ready to open! \226\152\133|r")
+        local row = GetVaultRow()
+        row.text:SetText("|cFFFFD100*** Your Great Vault is ready to open! ***|r")
         row.itemID = nil
         yOffset = yOffset + ROW_HEIGHT
-        rowIndex = rowIndex + 1
-        local spacer = GetRow(rowIndex)
+        local spacer = GetVaultRow()
         spacer.text:SetText("")
         spacer.itemID = nil
         yOffset = yOffset + ROW_HEIGHT
@@ -2325,8 +2352,7 @@ local function RenderVault()
         if days > 0 then countdownStr = days .. "d " end
         countdownStr = countdownStr .. hours .. "h " .. mins .. "m"
 
-        rowIndex = rowIndex + 1
-        local row = GetRow(rowIndex)
+        local row = GetVaultRow()
         row.text:SetText("|cFF888888Vault resets in: |cFFFFFFFF" .. countdownStr .. "|r")
         row.itemID = nil
         yOffset = yOffset + ROW_HEIGHT
@@ -2414,8 +2440,7 @@ local function RenderVault()
     end
 
     -- Summary row
-    rowIndex = rowIndex + 1
-    local summaryRow = GetRow(rowIndex)
+    local summaryRow = GetVaultRow()
     local summaryText = "|cFFFFFFFFThis Week: |cFF00FF00" .. totalUnlocked .. "/" .. totalSlots .. " slots unlocked|r"
     if bestIlvl > 0 then
         summaryText = summaryText .. "  |cFFFFD100Best: ilvl " .. bestIlvl .. " (" .. bestSource .. ")|r"
@@ -2424,8 +2449,7 @@ local function RenderVault()
     summaryRow.itemID = nil
     yOffset = yOffset + ROW_HEIGHT
 
-    rowIndex = rowIndex + 1
-    local spacer = GetRow(rowIndex)
+    local spacer = GetVaultRow()
     spacer.text:SetText("")
     spacer.itemID = nil
     yOffset = yOffset + ROW_HEIGHT
@@ -2433,16 +2457,14 @@ local function RenderVault()
     -- Render each activity type with visual bars
     for _, actType in ipairs(activityTypes) do
         -- Section header
-        rowIndex = rowIndex + 1
-        local hdr = GetRow(rowIndex)
+        local hdr = GetVaultRow()
         hdr.text:SetText("|cFFFFD100-- " .. actType.title .. " --|r")
         hdr.itemID = nil
         yOffset = yOffset + ROW_HEIGHT
 
         local activities = C_WeeklyRewards.GetActivities(actType.type)
         if not activities or #activities == 0 then
-            rowIndex = rowIndex + 1
-            local row = GetRow(rowIndex)
+            local row = GetVaultRow()
             row.text:SetText("  |cFF888888No data available|r")
             row.itemID = nil
             yOffset = yOffset + ROW_HEIGHT
@@ -2506,7 +2528,7 @@ local function RenderVault()
 
                 -- BiS potential indicator
                 if unlocked and ilvl and CheckVaultBiSPotential(ilvl) then
-                    bar.bisText:SetText("|cFFFFD100\226\152\133 Potential BiS upgrade|r")
+                    bar.bisText:SetText("|cFFFFD100* Potential BiS upgrade|r")
                 else
                     bar.bisText:SetText("")
                 end
@@ -2521,8 +2543,7 @@ local function RenderVault()
 
     -- Vault pick recommendation (when claimable)
     if canClaim then
-        rowIndex = rowIndex + 1
-        local recRow = GetRow(rowIndex)
+        local recRow = GetVaultRow()
         -- Find best vault slot to pick
         local bestSlot = nil
         local bestSlotIlvl = 0
@@ -3438,19 +3459,19 @@ local function HookTooltip()
                     if equippedLink then
                         local equippedIlvl = GetDetailedItemLevelInfo(equippedLink)
                         if equippedIlvl and bisIlvl and bisIlvl >= MIN_SANE_ILVL and equippedIlvl >= bisIlvl then
-                            tooltip:AddLine("|cFF00FF00\226\156\147 BiS equipped|r", 0, 1, 0)
+                            tooltip:AddLine("|cFF00FF00BiS equipped|r", 0, 1, 0)
                         elseif equippedIlvl and bisIlvl and bisIlvl >= MIN_SANE_ILVL then
-                            tooltip:AddLine("|cFFFFFF00\226\134\145 Upgrade: your ilvl " .. equippedIlvl .. " \226\134\146 BiS ilvl " .. bisIlvl .. "|r", 1, 1, 0)
+                            tooltip:AddLine("|cFFFFFF00Upgrade: your ilvl " .. equippedIlvl .. " -> BiS ilvl " .. bisIlvl .. "|r", 1, 1, 0)
                         else
-                            tooltip:AddLine("|cFF00FF00\226\156\147 BiS equipped|r", 0, 1, 0)
+                            tooltip:AddLine("|cFF00FF00BiS equipped|r", 0, 1, 0)
                         end
                     end
                 else
                     -- Different item or nothing equipped
                     if bagBiSCache[itemID] and bagBiSCache[itemID].inBag then
-                        tooltip:AddLine("|cFF4488FF\226\151\143 BiS item in your bags|r", 0.27, 0.53, 1)
+                        tooltip:AddLine("|cFF4488FFBiS item in your bags|r", 0.27, 0.53, 1)
                     else
-                        tooltip:AddLine("|cFFFF4444\226\156\151 Missing from your gear|r", 1, 0.27, 0.27)
+                        tooltip:AddLine("|cFFFF4444Missing from your gear|r", 1, 0.27, 0.27)
                     end
                 end
             end
