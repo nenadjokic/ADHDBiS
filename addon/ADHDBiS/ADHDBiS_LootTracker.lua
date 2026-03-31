@@ -50,11 +50,12 @@ local FILTER_DEFAULTS = {
     gear = true,
     mount = true,
     recipe = true,
+    tier = true,
     consumable = false,
     other = false,
     epicOnly = false,
     bindSoulbound = true,
-    bindWarbound = true,
+    bindWarbound = false,
     bindBoe = true,
 }
 local lootFilters = {}
@@ -169,7 +170,7 @@ filterTxt:SetText("|cFFAAAAAAFilter|r")
 
 -- Filter dropdown panel
 local filterDropdown = CreateFrame("Frame", "ADHDBiSLootFilterDropdown", lootFrame, "BackdropTemplate")
-filterDropdown:SetSize(145, 210)
+filterDropdown:SetSize(145, 232)
 filterDropdown:SetPoint("TOPRIGHT", filterBtn, "BOTTOMRIGHT", 0, -2)
 filterDropdown:SetFrameStrata("DIALOG")
 filterDropdown:SetBackdrop({
@@ -185,14 +186,15 @@ filterDropdown:EnableMouse(true)
 
 -- Filter options definition: {key, label, color}
 local FILTER_OPTIONS = {
-    { key = "gear",          label = "Gear",         color = "|cFF00BBFF" },
-    { key = "mount",         label = "Mounts",       color = "|cFFFF8800" },
-    { key = "recipe",        label = "Recipes",      color = "|cFF00DD00" },
-    { key = "consumable",    label = "Consumables",  color = "|cFFBBBBBB" },
-    { key = "other",         label = "Other",        color = "|cFF888888" },
-    { key = "epicOnly",      label = "Epic+ Only",   color = "|cFFA335EE", separator = true },
-    { key = "bindSoulbound", label = "Soulbound",    color = "|cFFFF4444", separator = true },
-    { key = "bindWarbound",  label = "Warbound",     color = "|cFF00CCFF" },
+    { key = "gear",          label = "Gear",          color = "|cFF00BBFF" },
+    { key = "mount",         label = "Mounts",        color = "|cFFFF8800" },
+    { key = "recipe",        label = "Recipes",       color = "|cFF00DD00" },
+    { key = "tier",          label = "Tier Tokens",   color = "|cFFFF66FF" },
+    { key = "consumable",    label = "Consumables",   color = "|cFFBBBBBB" },
+    { key = "other",         label = "Other",         color = "|cFF888888" },
+    { key = "epicOnly",      label = "Epic+ Only",    color = "|cFFA335EE", separator = true },
+    { key = "bindSoulbound", label = "Soulbound",     color = "|cFFFF4444", separator = true },
+    { key = "bindWarbound",  label = "Warbound",      color = "|cFF00CCFF" },
     { key = "bindBoe",       label = "Bind on Equip", color = "|cFF00DD00" },
 }
 
@@ -1027,8 +1029,23 @@ end
 -- Item category classification using WoW classID/subclassID
 -- classID: 0=Consumable, 2=Weapon, 3=Gem, 4=Armor, 5=Reagent,
 --          7=Tradeskill, 8=ItemEnhancement, 9=Recipe, 15=Miscellaneous
+-- Tier token detection by item name (covers all Nullcore variants)
+local tierTokenCache = {}
+local function IsTierToken(itemID)
+    if tierTokenCache[itemID] ~= nil then return tierTokenCache[itemID] end
+    local name = GetItemInfo(itemID)
+    if name then
+        local isTier = name:find("Nullcore") ~= nil
+        tierTokenCache[itemID] = isTier
+        return isTier
+    end
+    return false -- item not cached yet, will resolve on next call
+end
+
 local function GetItemCategory(itemID)
     if not itemID then return "other" end
+    -- Tier tokens first (checked by name before classID logic)
+    if IsTierToken(itemID) then return "tier" end
     local _, _, _, _, _, classID, subclassID = GetItemInfoInstant(itemID)
     if not classID then return "other" end
     -- Gear: weapons and equippable armor
@@ -1682,9 +1699,9 @@ local function OnEvent(self, event, ...)
         local _, _, quality = GetItemInfo(itemID)
         if quality and quality < 3 then return end
 
-        -- Skip non-gear items (tier tokens, crafting reagents, etc.)
+        -- Skip non-gear items (crafting reagents, etc.) but allow tier tokens
         local cat = GetItemCategory(itemID)
-        if cat ~= "gear" and cat ~= "mount" and cat ~= "recipe" then return end
+        if cat ~= "gear" and cat ~= "mount" and cat ~= "recipe" and cat ~= "tier" then return end
 
         local bossName = lastEncounterName or "Boss"
 
@@ -1768,9 +1785,9 @@ local function OnEvent(self, event, ...)
         local _, _, quality = GetItemInfo(itemID)
         if quality and quality < 3 then return end
 
-        -- Skip non-gear items (tier tokens, crafting reagents, etc.)
+        -- Skip non-gear items (crafting reagents, etc.) but allow tier tokens
         local cat = GetItemCategory(itemID)
-        if cat ~= "gear" and cat ~= "mount" and cat ~= "recipe" then return end
+        if cat ~= "gear" and cat ~= "mount" and cat ~= "recipe" and cat ~= "tier" then return end
 
         -- Determine player name based on message format:
         -- "[Loot]: [Item]" = item appeared in loot roll window, no owner yet

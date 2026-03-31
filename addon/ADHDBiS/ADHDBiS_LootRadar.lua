@@ -31,6 +31,7 @@ local detectedUpgrades = {} -- { { looter, itemLink, itemID, ilvl, reason, slotN
 local mythicPlusActive = false
 local inDungeon = false      -- true when in any dungeon (M0, M+, heroic, etc.)
 local snapshotTaken = false  -- prevents re-snapshotting on every zone change
+local userDismissed = false  -- true when user manually closes panel; prevents re-showing same results
 local inspectQueue = {}
 local inspectCallback = nil -- "snapshot" or "compare"
 local inspectRetries = {}   -- [unit] = retry count
@@ -438,7 +439,10 @@ closeBtn:SetPoint("TOPRIGHT", radarFrame, "TOPRIGHT", -6, -6)
 closeBtn:SetNormalTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Up")
 closeBtn:SetPushedTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Down")
 closeBtn:SetHighlightTexture("Interface\\Buttons\\UI-Panel-MinimizeButton-Highlight", "ADD")
-closeBtn:SetScript("OnClick", function() radarFrame:Hide() end)
+closeBtn:SetScript("OnClick", function()
+    radarFrame:Hide()
+    userDismissed = true
+end)
 
 -- Message mode toggle
 local modeBtn = CreateFrame("Button", nil, radarFrame, "UIPanelButtonTemplate")
@@ -541,6 +545,9 @@ local function CreateResultRow(index)
 end
 
 function ShowLootRadarPanel()
+    -- Don't re-show if user already dismissed the panel
+    if userDismissed then return end
+
     local db = GetDB()
 
     -- Restore window position
@@ -680,8 +687,10 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
         -- Auto-register loot tracking when entering a non-M+ dungeon
         if inDungeon and not mythicPlusActive then
             eventFrame:RegisterEvent("CHAT_MSG_LOOT")
-            if not wasDungeon then
-                -- Just entered dungeon - take initial snapshot
+            if not wasDungeon and not snapshotTaken then
+                -- First time entering this dungeon - take initial snapshot
+                snapshotTaken = true
+                userDismissed = false
                 detectedUpgrades = {}
                 lootedItems = {}
                 C_Timer.After(2, SnapshotAllParty)
@@ -689,12 +698,15 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             end
         elseif not inDungeon and not mythicPlusActive then
             eventFrame:UnregisterEvent("CHAT_MSG_LOOT")
+            snapshotTaken = false
+            userDismissed = false
         end
 
     elseif event == "CHALLENGE_MODE_START" then
         -- M+ started: take snapshot, go silent until completion
         mythicPlusActive = true
         snapshotTaken = true
+        userDismissed = false
         inDungeon = true
         detectedUpgrades = {}
         lootedItems = {}
@@ -706,6 +718,7 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
     elseif event == "CHALLENGE_MODE_COMPLETED" then
         -- M+ done: immediately re-enable CHAT_MSG_LOOT to catch chest loot
         mythicPlusActive = false
+        userDismissed = false
         eventFrame:RegisterEvent("CHAT_MSG_LOOT")
         print("|cFF9482C9ADHDBiS LootRadar:|r M+ completed! Tracking chest loot...")
         -- Also do gear compare after delay (catches items that got equipped)
@@ -785,6 +798,7 @@ ns.ToggleLootRadar = function(subCmd)
 
     elseif subCmd == "clear" then
         detectedUpgrades = {}
+        userDismissed = false
         radarFrame:Hide()
         print("|cFF9482C9ADHDBiS LootRadar:|r Results cleared.")
 
