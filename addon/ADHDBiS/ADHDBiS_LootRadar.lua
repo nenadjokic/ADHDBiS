@@ -25,6 +25,16 @@ local SLOT_NAMES = {
 
 local ALL_GEAR_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 }
 
+-- Armor type filtering
+local PLAYER_ARMOR_TYPE
+local CLASS_ARMOR = {
+    WARRIOR = "Plate", PALADIN = "Plate", DEATHKNIGHT = "Plate",
+    HUNTER = "Mail", SHAMAN = "Mail", EVOKER = "Mail",
+    ROGUE = "Leather", MONK = "Leather", DRUID = "Leather", DEMONHUNTER = "Leather",
+    MAGE = "Cloth", WARLOCK = "Cloth", PRIEST = "Cloth",
+}
+local ARMOR_SUBCLASS = { Cloth = 1, Leather = 2, Mail = 3, Plate = 4 }
+
 -- Runtime state
 local partySnapshots = {}   -- [unitName] = { [slotID] = { link, ilvl, itemID } }
 local detectedUpgrades = {} -- { { looter, itemLink, itemID, ilvl, reason, slotName } }
@@ -91,8 +101,17 @@ end
 
 local function IsUpgradeForPlayer(itemID, itemIlvl)
     if not itemID or not itemIlvl or itemIlvl == 0 then return false, 0, nil end
-    local _, _, _, equipLoc = GetItemInfoInstant(itemID)
+    local _, _, _, equipLoc, _, itemClassID, itemSubClassID = GetItemInfoInstant(itemID)
     if not equipLoc or equipLoc == "" then return false, 0, nil end
+    -- Filter by armor type (classID 4 = Armor, subClassID > 0 = actual armor pieces)
+    if itemClassID == 4 and itemSubClassID and itemSubClassID > 0 then
+        if not PLAYER_ARMOR_TYPE then
+            local _, engClass = UnitClass("player")
+            PLAYER_ARMOR_TYPE = CLASS_ARMOR[engClass] or "Cloth"
+        end
+        local playerSubClass = ARMOR_SUBCLASS[PLAYER_ARMOR_TYPE] or 1
+        if itemSubClassID ~= playerSubClass then return false, 0, nil end
+    end
     local slotID = EQUIP_LOC_TO_SLOT[equipLoc]
     if not slotID then return false, 0, nil end
     local slotsToCheck = { slotID }
