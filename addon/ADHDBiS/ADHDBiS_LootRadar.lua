@@ -98,6 +98,7 @@ local function IsUpgradeForPlayer(itemID, itemIlvl)
     local slotsToCheck = { slotID }
     if equipLoc == "INVTYPE_FINGER" then slotsToCheck = { 11, 12 } end
     if equipLoc == "INVTYPE_TRINKET" then slotsToCheck = { 13, 14 } end
+    if equipLoc == "INVTYPE_2HWEAPON" then slotsToCheck = { 16, 17 } end
     local lowestEquipped = 99999
     local lowestSlot = slotID
     for _, sid in ipairs(slotsToCheck) do
@@ -240,6 +241,7 @@ function CompareAndShowResults()
                                     local checkSlots = { eqSlot }
                                     if eqLoc == "INVTYPE_FINGER" then checkSlots = { 11, 12 } end
                                     if eqLoc == "INVTYPE_TRINKET" then checkSlots = { 13, 14 } end
+                                    if eqLoc == "INVTYPE_2HWEAPON" then checkSlots = { 16, 17 } end
                                     for _, sid in ipairs(checkSlots) do
                                         local eLink = GetInventoryItemLink("player", sid)
                                         if eLink then
@@ -332,6 +334,7 @@ local function OnLootMessage(msg)
                 local slotsToCheck = { slotID }
                 if equipLoc == "INVTYPE_FINGER" then slotsToCheck = { 11, 12 } end
                 if equipLoc == "INVTYPE_TRINKET" then slotsToCheck = { 13, 14 } end
+                if equipLoc == "INVTYPE_2HWEAPON" then slotsToCheck = { 16, 17 } end
                 for _, sid in ipairs(slotsToCheck) do
                     local equippedLink = GetInventoryItemLink("player", sid)
                     if equippedLink then
