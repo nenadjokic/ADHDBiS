@@ -150,25 +150,44 @@ local QUALITY_COLORS = {
 -- TOOLTIP SCANNER
 -- ============================================================
 
-local scanTip = CreateFrame("GameTooltip", "ADHDBiSOverviewScanTip", nil, "GameTooltipTemplate")
-scanTip:SetOwner(UIParent, "ANCHOR_NONE")
+-- Use C_TooltipInfo (available since 10.0.2) for reliable tooltip data
+local function GetTooltipLines(slotID)
+    local lines = {}
+    if C_TooltipInfo and C_TooltipInfo.GetInventoryItem then
+        local data = C_TooltipInfo.GetInventoryItem("player", slotID)
+        if data then
+            if TooltipUtil and TooltipUtil.SurfaceArgs then
+                TooltipUtil.SurfaceArgs(data)
+            end
+            if data.lines then
+                for _, line in ipairs(data.lines) do
+                    if line.leftText then
+                        lines[#lines + 1] = line.leftText
+                    end
+                end
+            end
+        end
+    end
+    return lines
+end
 
 -- ============================================================
 -- HELPER FUNCTIONS
 -- ============================================================
 
 local function GetUpgradeTrack(slotID)
-    scanTip:ClearLines()
-    scanTip:SetInventoryItem("player", slotID)
-    for i = 1, scanTip:NumLines() do
-        local line = _G["ADHDBiSOverviewScanTipTextLeft" .. i]
-        if line then
-            local text = line:GetText()
-            if text then
-                local track, rank, total = text:match("Upgrade Level:%s*(%S+)%s+(%d+)/(%d+)")
-                if track and rank then
-                    return track, tonumber(rank), tonumber(total)
-                end
+    local lines = GetTooltipLines(slotID)
+    for _, text in ipairs(lines) do
+        -- Match "Upgrade Level: Champion 4/6" format
+        local track, rank, total = text:match("Upgrade Level:%s*(%S+)%s+(%d+)/(%d+)")
+        if track and rank then
+            return track, tonumber(rank), tonumber(total)
+        end
+        -- Match standalone "Champion 4/6" or "Hero 4/6" format (newer patches)
+        for _, trackName in ipairs({"Adventurer", "Veteran", "Champion", "Hero", "Myth"}) do
+            local r, t = text:match(trackName .. "%s+(%d+)/(%d+)")
+            if r then
+                return trackName, tonumber(r), tonumber(t)
             end
         end
     end
@@ -176,30 +195,20 @@ local function GetUpgradeTrack(slotID)
 end
 
 local function HasEmptySocket(slotID)
-    scanTip:ClearLines()
-    scanTip:SetInventoryItem("player", slotID)
-    for i = 1, scanTip:NumLines() do
-        local line = _G["ADHDBiSOverviewScanTipTextLeft" .. i]
-        if line then
-            local text = line:GetText()
-            if text and text:find("Empty") and text:find("Socket") then
-                return true
-            end
+    local lines = GetTooltipLines(slotID)
+    for _, text in ipairs(lines) do
+        if text:find("Empty") and text:find("Socket") then
+            return true
         end
     end
     return false
 end
 
 local function HasFilledGem(slotID)
-    scanTip:ClearLines()
-    scanTip:SetInventoryItem("player", slotID)
-    for i = 1, scanTip:NumLines() do
-        local line = _G["ADHDBiSOverviewScanTipTextLeft" .. i]
-        if line then
-            local text = line:GetText()
-            if text and text:find("Socket") and not text:find("Empty") then
-                return true
-            end
+    local lines = GetTooltipLines(slotID)
+    for _, text in ipairs(lines) do
+        if text:find("Socket") and not text:find("Empty") then
+            return true
         end
     end
     return false
@@ -224,15 +233,19 @@ local function GetGemStatus(slotID)
 end
 
 local function HasEnchant(slotID)
-    scanTip:ClearLines()
-    scanTip:SetInventoryItem("player", slotID)
-    for i = 1, scanTip:NumLines() do
-        local line = _G["ADHDBiSOverviewScanTipTextLeft" .. i]
-        if line then
-            local text = line:GetText()
-            if text and text:find("Enchanted:") then
-                return true
-            end
+    -- Primary: check enchantID directly from item link (most reliable)
+    local link = GetInventoryItemLink("player", slotID)
+    if link then
+        local enchantID = tonumber(link:match("item:%d+:(%d+)"))
+        if enchantID and enchantID > 0 then
+            return true
+        end
+    end
+    -- Fallback: scan tooltip for "Enchanted:" text
+    local lines = GetTooltipLines(slotID)
+    for _, text in ipairs(lines) do
+        if text:find("Enchanted:") then
+            return true
         end
     end
     return false
