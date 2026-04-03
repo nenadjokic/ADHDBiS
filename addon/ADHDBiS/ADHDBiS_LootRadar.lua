@@ -241,7 +241,9 @@ function CompareAndShowResults()
                     -- Only detect as new loot if:
                     -- 1. New item exists AND old item existed (prevents false positives from failed inspects)
                     -- 2. Item IDs are different (they actually changed gear)
-                    if new and old and old.itemID ~= new.itemID then
+                    -- 3. Item was actually seen in a CHAT_MSG_LOOT event (prevents false positives from gear swaps)
+                    if new and old and old.itemID ~= new.itemID
+                       and lootedItems[name] and lootedItems[name][new.itemID] then
                         -- This player got a new item in this slot
                         local newItemID = new.itemID
                         local newIlvl = new.ilvl
@@ -316,7 +318,7 @@ end
 -- CHAT_MSG_LOOT TRACKING (secondary source)
 -- ============================================================
 
-local lootedItems = {} -- { { looter, itemLink, itemID, ilvl } }
+local lootedItems = {} -- [playerName] = { [itemID] = true } — tracks actual loot events per player
 
 local function OnLootMessage(msg)
     if not inDungeon then return end
@@ -336,6 +338,10 @@ local function OnLootMessage(msg)
     local itemID = GetItemInfoInstant(itemLink)
     if not itemID then return end
     local ilvl = GetDetailedItemLevelInfo(itemLink) or 0
+
+    -- Track this loot event (used by CompareAndShowResults to filter gear swaps)
+    if not lootedItems[playerName] then lootedItems[playerName] = {} end
+    lootedItems[playerName][itemID] = true
 
     -- Skip own loot
     if playerName == UnitName("player") then return end
@@ -722,6 +728,9 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             eventFrame:UnregisterEvent("CHAT_MSG_LOOT")
             snapshotTaken = false
             userDismissed = false
+            detectedUpgrades = {}
+            lootedItems = {}
+            radarFrame:Hide()
         end
 
     elseif event == "CHALLENGE_MODE_START" then

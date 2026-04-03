@@ -129,12 +129,26 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
+    <!-- === v1.7.6 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.7.6</span>
+            <span class="release-date">April 3, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">Bug Fixes</p>
+        <ul>
+            <li><strong>LootRadar: False positive gear swap fix</strong> &mdash; Fixed LootRadar showing items that party members already had equipped from previous dungeons. The radar now validates that detected gear changes match actual loot events from the current dungeon, preventing false positives from gear swaps or bag equips</li>
+            <li><strong>LootRadar: State cleanup on dungeon exit</strong> &mdash; Detected upgrades and tracked loot are now properly cleared when leaving a dungeon, and the radar panel auto-hides. Previously, stale data could persist between dungeon runs</li>
+        </ul>
+    </div>
+
     <!-- === v1.7.5 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.7.5</span>
             <span class="release-date">April 1, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">Bug Fixes</p>
