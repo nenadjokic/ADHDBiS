@@ -9,6 +9,10 @@ ADHDBiS_LootDB = ADHDBiS_LootDB or {}
 local MAX_SESSIONS = 5
 local MAX_SESSION_ITEMS = 500
 
+-- Encounter tracking (forward-declared for clearBtn handler)
+local lastEncounterName = nil
+local lastEncounterTime = 0
+
 -- ============================================================
 -- CONSTANTS
 -- ============================================================
@@ -1614,9 +1618,7 @@ end
 
 local lootEventFrame = CreateFrame("Frame")
 
--- Track the last boss that was killed
-local lastEncounterName = nil
-local lastEncounterTime = 0
+-- Track the last boss that was killed (locals declared at top of file)
 local lastLootWindowTime = 0 -- when a loot window (NPC corpse/chest) was last opened
 
 local function OnEvent(self, event, ...)

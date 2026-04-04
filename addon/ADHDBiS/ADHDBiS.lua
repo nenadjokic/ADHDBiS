@@ -3189,9 +3189,6 @@ optClose:SetScript("OnClick", function() optPanel:Hide() end)
 -- Close on outside click
 optPanel:SetScript("OnShow", function(self)
     self:RegisterEvent("GLOBAL_MOUSE_DOWN")
-    -- Refresh all toggle states when panel opens
-    if lootTrackToggle and lootTrackToggle.UpdateStatus then lootTrackToggle.UpdateStatus() end
-    if debugToggle and debugToggle.UpdateStatus then debugToggle.UpdateStatus() end
 end)
 optPanel:SetScript("OnHide", function(self) self:UnregisterEvent("GLOBAL_MOUSE_DOWN") end)
 optPanel:SetScript("OnEvent", function(self, event)
@@ -3335,6 +3332,12 @@ OptButton(optPanel, "Copy Debug Log", y, function() optPanel:Hide() SlashCmdList
 _, y = nil, y - (OPT_BTN_HEIGHT + 3)
 OptButton(optPanel, "Clear Debug Log", y, function() SlashCmdList["ADHDBIS"]("loot debug clear") end)
 _, y = nil, y - (OPT_BTN_HEIGHT + 3)
+
+-- Now that both toggles exist, hook OnShow to refresh their states
+optPanel:HookScript("OnShow", function()
+    if lootTrackToggle.UpdateStatus then lootTrackToggle.UpdateStatus() end
+    if debugToggle.UpdateStatus then debugToggle.UpdateStatus() end
+end)
 
 -- Minimap section
 y = y - 4

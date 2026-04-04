@@ -25,6 +25,8 @@ local SLOT_NAMES = {
 
 local ALL_GEAR_SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 }
 
+local lootedItems = {} -- [playerName] = { [itemID] = true } — tracks actual loot events per player
+
 -- Armor type filtering
 local PLAYER_ARMOR_TYPE
 local CLASS_ARMOR = {
@@ -317,8 +319,6 @@ end
 -- ============================================================
 -- CHAT_MSG_LOOT TRACKING (secondary source)
 -- ============================================================
-
-local lootedItems = {} -- [playerName] = { [itemID] = true } — tracks actual loot events per player
 
 local function OnLootMessage(msg)
     if not inDungeon then return end

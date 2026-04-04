@@ -129,12 +129,27 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
+    <!-- === v1.7.7 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.7.7</span>
+            <span class="release-date">April 4, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">Bug Fixes</p>
+        <ul>
+            <li><strong>LootRadar: Variable scope crash fix</strong> &mdash; Fixed a Lua error (<code>attempt to index global 'lootedItems'</code>) that occurred when LootRadar detected gear changes on party members. The loot tracking table was declared after the function that used it, causing a nil reference at runtime</li>
+            <li><strong>Loot Tracker: Clear button now resets encounter state</strong> &mdash; Fixed the Clear All button not actually resetting encounter tracking variables due to the same type of variable scope issue. Previously, clearing sessions left stale boss encounter data behind</li>
+            <li><strong>Options panel: Toggle states now refresh correctly</strong> &mdash; Fixed Loot Tracking and Debug Logging toggles always showing stale status when opening the options panel. The toggle refresh was referencing variables before they were created</li>
+        </ul>
+    </div>
+
     <!-- === v1.7.6 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.7.6</span>
             <span class="release-date">April 3, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">Bug Fixes</p>
