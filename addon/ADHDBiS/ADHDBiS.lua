@@ -3479,27 +3479,7 @@ local function HookTooltip()
                 end
             end
 
-            -- Source info from data
-            if ADHDBiS_Data and ADHDBiS_Data.classes then
-                local classData = ADHDBiS_Data.classes[playerClass]
-                if classData then
-                    for _, sData in pairs(classData[specName] or {}) do
-                        if type(sData) == "table" and sData.gear then
-                            for _, gType in ipairs({"overall", "raid", "mythicplus"}) do
-                                local gl = sData.gear[gType]
-                                if gl then
-                                    for _, item in ipairs(gl) do
-                                        if item.itemID == itemID and item.source and item.source ~= "" then
-                                            tooltip:AddLine("|cFF888888Source: " .. item.source .. "|r", 0.5, 0.5, 0.5, true)
-                                            break
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
+            -- Source info removed (shown via formatted Source line from panel tooltip instead)
         end
 
         -- Other classes: show with Shift, otherwise just count
@@ -3519,6 +3499,18 @@ local function HookTooltip()
         TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, OnTooltipItem)
     end
 end
+
+-- Refresh GameTooltip on Shift press/release so BiS details update live
+local modifierFrame = CreateFrame("Frame")
+modifierFrame:RegisterEvent("MODIFIER_STATE_CHANGED")
+modifierFrame:SetScript("OnEvent", function(_, _, key)
+    if (key == "LSHIFT" or key == "RSHIFT") and GameTooltip:IsShown() then
+        local _, itemLink = GameTooltip:GetItem()
+        if itemLink then
+            GameTooltip:SetHyperlink(itemLink)
+        end
+    end
+end)
 
 -- Hook tooltip after BiS lookup is built (deferred to avoid load-time overhead)
 local tooltipInitFrame = CreateFrame("Frame")

@@ -12,7 +12,7 @@ ADHDBiS_OverviewDB = ADHDBiS_OverviewDB or {}
 local function GetOverviewDB()
     local db = ADHDBiS_OverviewDB
     if not db.width then db.width = 740 end
-    if not db.height then db.height = 600 end
+    if not db.height then db.height = 700 end
     return db
 end
 
@@ -145,6 +145,74 @@ local QUALITY_COLORS = {
     [3] = "0070DD", [4] = "A335EE", [5] = "FF8000",
     [6] = "E6CC80", [7] = "00CCFF",
 }
+
+-- Secondary stat rating IDs
+local STAT_IDS = {
+    { key = "Critical Strike", short = "Crit",   ratingID = 11 },  -- CR_CRIT_SPELL
+    { key = "Haste",           short = "Haste",  ratingID = 20 },  -- CR_HASTE_SPELL
+    { key = "Mastery",         short = "Mast",   ratingID = 26 },  -- CR_MASTERY
+    { key = "Versatility",     short = "Vers",   ratingID = 29 },  -- CR_VERSATILITY_DAMAGE_DONE
+}
+
+-- Stat bar colors
+local STAT_COLORS = {
+    ["Critical Strike"] = { r = 1.00, g = 0.40, b = 0.40 },
+    ["Haste"]           = { r = 0.40, g = 0.80, b = 1.00 },
+    ["Mastery"]         = { r = 1.00, g = 0.75, b = 0.25 },
+    ["Versatility"]     = { r = 0.40, g = 1.00, b = 0.40 },
+}
+
+-- Parse stat priority text into ordered list with equal-rank grouping
+-- e.g. "Haste > Crit ~= Mastery > Vers" -> {{Haste}, {Crit, Mastery}, {Vers}}
+local function ParseStatPriority(prioText)
+    if not prioText or prioText == "" then return nil end
+    local groups = {}
+    -- Remove "Intellect > " or "Agility > " or "Strength > " prefix (primary stat)
+    local cleaned = prioText:gsub("^%s*[A-Z][a-z]+%s*>%s*", "", 1)
+    -- Also remove any parenthetical notes like "( Motes of Possibility builds)"
+    cleaned = cleaned:gsub("%s*%(.-%)%s*", "")
+    -- Split by > (strict greater)
+    for segment in cleaned:gmatch("[^>]+") do
+        segment = segment:match("^%s*(.-)%s*$") -- trim
+        if segment ~= "" then
+            local group = {}
+            -- Split by ~=, >=, =  (equal-ish separators)
+            for stat in segment:gmatch("[^~=]+") do
+                stat = stat:match("^%s*(.-)%s*$") -- trim
+                if stat ~= "" then
+                    group[#group + 1] = stat
+                end
+            end
+            if #group > 0 then
+                groups[#groups + 1] = group
+            end
+        end
+    end
+    return groups
+end
+
+-- Convert priority groups into ideal percentage targets
+-- Top priority gets the biggest share, descending
+local function GetIdealDistribution(prioGroups)
+    if not prioGroups or #prioGroups == 0 then return nil end
+    -- Assign descending weights: first group gets highest weight
+    local weights = {}
+    local totalWeight = 0
+    local baseWeight = #prioGroups + 1
+    for rank, group in ipairs(prioGroups) do
+        local w = math.max(baseWeight - rank, 1)
+        for _, statName in ipairs(group) do
+            weights[statName] = w
+            totalWeight = totalWeight + w
+        end
+    end
+    -- Normalize to percentages
+    local ideal = {}
+    for statName, w in pairs(weights) do
+        ideal[statName] = (w / totalWeight) * 100
+    end
+    return ideal
+end
 
 -- ============================================================
 -- TOOLTIP SCANNER
@@ -446,6 +514,89 @@ local function CreateCrestBars()
         crestBars[i] = { row = row, label = label, value = valueTxt, bar = bar, avail = availTxt, crest = crest }
     end
 end
+
+-- ============================================================
+-- STAT DISTRIBUTION SECTION
+-- ============================================================
+
+local statHeader = overviewFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+statHeader:SetText("|cFFFFD100Stat Distribution|r")
+
+local statRows = {}
+local function CreateStatRows()
+    local anchor = statHeader
+    for i, stat in ipairs(STAT_IDS) do
+        local row = CreateFrame("Frame", nil, overviewFrame)
+        row:SetHeight(20)
+        row:SetPoint("LEFT", overviewFrame, "LEFT", 12, 0)
+        row:SetPoint("RIGHT", overviewFrame, "RIGHT", -12, 0)
+        if i == 1 then
+            row:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -4)
+        else
+            row:SetPoint("TOPLEFT", statRows[i - 1].row, "BOTTOMLEFT", 0, -1)
+        end
+
+        -- Stat name label
+        local label = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        label:SetPoint("LEFT", row, "LEFT", 0, 0)
+        label:SetWidth(38)
+        label:SetJustifyH("LEFT")
+        label:SetText(stat.short)
+
+        -- Current value + pct text
+        local curTxt = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        curTxt:SetPoint("LEFT", label, "RIGHT", 2, 0)
+        curTxt:SetWidth(95)
+        curTxt:SetJustifyH("RIGHT")
+
+        -- Bar background
+        local barBg = row:CreateTexture(nil, "BACKGROUND")
+        barBg:SetPoint("LEFT", curTxt, "RIGHT", 6, 0)
+        barBg:SetPoint("RIGHT", row, "RIGHT", -120, 0)
+        barBg:SetHeight(14)
+        barBg:SetColorTexture(0.1, 0.1, 0.15, 0.8)
+
+        -- Current stat bar
+        local bar = CreateFrame("StatusBar", nil, row)
+        bar:SetPoint("LEFT", curTxt, "RIGHT", 6, 0)
+        bar:SetPoint("RIGHT", row, "RIGHT", -120, 0)
+        bar:SetHeight(14)
+        bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+        local c = STAT_COLORS[stat.key]
+        bar:SetStatusBarColor(c.r, c.g, c.b, 0.9)
+        bar:SetMinMaxValues(0, 100)
+        bar:SetValue(0)
+
+        -- Ideal marker (thin white line on the bar)
+        local idealMark = bar:CreateTexture(nil, "OVERLAY")
+        idealMark:SetSize(2, 14)
+        idealMark:SetColorTexture(1, 1, 1, 0.9)
+
+        -- Ideal % text
+        local idealTxt = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        idealTxt:SetPoint("LEFT", bar, "RIGHT", 6, 0)
+        idealTxt:SetWidth(55)
+        idealTxt:SetJustifyH("LEFT")
+
+        -- Delta text
+        local deltaTxt = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        deltaTxt:SetPoint("LEFT", idealTxt, "RIGHT", 2, 0)
+        deltaTxt:SetWidth(55)
+        deltaTxt:SetJustifyH("LEFT")
+
+        statRows[i] = {
+            row = row, label = label, curTxt = curTxt,
+            bar = bar, idealMark = idealMark,
+            idealTxt = idealTxt, deltaTxt = deltaTxt,
+            stat = stat,
+        }
+    end
+end
+
+-- Summary line below stat bars
+local statSummary = overviewFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+statSummary:SetJustifyH("LEFT")
+statSummary:SetTextColor(0.7, 0.7, 0.7)
 
 -- ============================================================
 -- GEAR SOURCE TABS (Overall / Raid / M+)
@@ -772,6 +923,111 @@ RefreshOverview = function()
         end
     end
 
+    -- Stat Distribution
+    local lastCrest = crestBars[#crestBars]
+    statHeader:ClearAllPoints()
+    statHeader:SetPoint("TOPLEFT", lastCrest.row, "BOTTOMLEFT", 0, -12)
+
+    local prioGroups = ParseStatPriority(statPrio)
+    local idealDist = GetIdealDistribution(prioGroups)
+
+    -- Gather actual in-game stat percentages (matching character panel)
+    local statPcts = {}
+    statPcts["Critical Strike"] = GetSpellCritChance() or GetCritChance() or 0
+    statPcts["Haste"] = UnitSpellHaste("player") or 0
+    local masteryVal = GetMasteryEffect()
+    statPcts["Mastery"] = masteryVal or 0
+    statPcts["Versatility"] = GetCombatRatingBonus(29) or 0
+
+    -- Also get raw ratings for the "need X more rating" calculations
+    local totalRating = 0
+    local statRatings = {}
+    for _, stat in ipairs(STAT_IDS) do
+        local rating = GetCombatRating(stat.ratingID) or 0
+        statRatings[stat.key] = rating
+        totalRating = totalRating + rating
+    end
+
+    -- Total of actual percentages for distribution bar
+    local totalPct = 0
+    for _, p in pairs(statPcts) do totalPct = totalPct + p end
+
+    local summaryParts = {}
+    for i, entry in ipairs(statRows) do
+        local stat = entry.stat
+        local rating = statRatings[stat.key] or 0
+        local actualPct = statPcts[stat.key] or 0
+        local distPct = totalPct > 0 and (actualPct / totalPct * 100) or 0
+
+        entry.label:SetText(stat.short)
+        entry.curTxt:SetText(string.format("%d (%.0f%%)", rating, actualPct))
+        entry.bar:SetMinMaxValues(0, 100)
+        entry.bar:SetValue(distPct)
+
+        -- Find ideal for this stat
+        local idealPct = nil
+        if idealDist then
+            for iStatName, iPct in pairs(idealDist) do
+                if stat.key:lower():find(iStatName:lower(), 1, true)
+                   or iStatName:lower():find(stat.key:lower(), 1, true) then
+                    idealPct = iPct
+                    break
+                end
+            end
+        end
+
+        if idealPct then
+            -- Position the ideal marker on the bar
+            entry.idealMark:Show()
+            entry.idealMark:ClearAllPoints()
+            local barWidth = entry.bar:GetWidth()
+            if barWidth and barWidth > 0 then
+                local markerX = (idealPct / 100) * barWidth
+                entry.idealMark:SetPoint("LEFT", entry.bar, "LEFT", markerX, 0)
+            end
+
+            entry.idealTxt:SetText(string.format("|cFFAAAAAA%.0f%% ideal|r", idealPct))
+
+            local delta = distPct - idealPct
+            if math.abs(delta) < 3 then
+                -- Close enough - green
+                entry.deltaTxt:SetText("|cFF00FF00OK|r")
+                entry.label:SetTextColor(0.7, 0.7, 0.7)
+            elseif delta > 0 then
+                -- Too much of this stat - yellow/orange
+                entry.deltaTxt:SetText(string.format("|cFFFF8800+%.0f%%|r", delta))
+                entry.label:SetTextColor(1, 0.55, 0)
+                local excess = rating > 0 and math.floor(rating * delta / distPct) or 0
+                summaryParts[#summaryParts + 1] = string.format("|cFFFF8800-%d %s|r", excess, stat.short)
+            else
+                -- Not enough - red
+                entry.deltaTxt:SetText(string.format("|cFFFF4444%.0f%%|r", delta))
+                entry.label:SetTextColor(1, 0.3, 0.3)
+                local need = math.floor(totalRating * math.abs(delta) / 100)
+                summaryParts[#summaryParts + 1] = string.format("|cFF44FF44+%d %s|r", need, stat.short)
+            end
+        else
+            entry.idealMark:Hide()
+            entry.idealTxt:SetText("|cFF555555no data|r")
+            entry.deltaTxt:SetText("")
+            entry.label:SetTextColor(0.5, 0.5, 0.5)
+        end
+    end
+
+    -- Summary line
+    if #summaryParts > 0 then
+        statSummary:SetText("To reach ideal: " .. table.concat(summaryParts, "  "))
+    else
+        if idealDist then
+            statSummary:SetText("|cFF00FF00Stats are well balanced!|r")
+        else
+            statSummary:SetText("|cFF888888Run companion app to see ideal split|r")
+        end
+    end
+    local lastStatRow = statRows[#statRows]
+    statSummary:ClearAllPoints()
+    statSummary:SetPoint("TOPLEFT", lastStatRow.row, "BOTTOMLEFT", 0, -3)
+
     -- Gear toggle button highlights
     for _, btn in ipairs(gearToggleBtns) do
         if btn.source == selectedOverviewSource then
@@ -783,10 +1039,9 @@ RefreshOverview = function()
         end
     end
 
-    -- Position gear section below crests
-    local lastCrest = crestBars[#crestBars]
+    -- Position gear section below stat distribution
     gearTitle:ClearAllPoints()
-    gearTitle:SetPoint("TOPLEFT", lastCrest.row, "BOTTOMLEFT", 0, -12)
+    gearTitle:SetPoint("TOPLEFT", statSummary, "BOTTOMLEFT", 0, -10)
     gearTitle:SetText("|cFFFFD100Equipped Gear|r")
 
     gearToggleFrame:ClearAllPoints()
@@ -937,6 +1192,7 @@ local function InitOnce()
     if initialized then return end
     initialized = true
     CreateCrestBars()
+    CreateStatRows()
 end
 
 function ns.ToggleOverview()
