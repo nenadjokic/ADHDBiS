@@ -10,6 +10,7 @@ local defaults = {
     windowPoint = { "CENTER", nil, "CENTER", 0, 0 },
     windowWidth = 620,
     windowHeight = 520,
+    disableTooltips = false,
 }
 
 -- ============================================================
@@ -3293,6 +3294,14 @@ _, y = nil, y - (OPT_BTN_HEIGHT + 3)
 OptButton(optPanel, "Gear Overview", y, function() optPanel:Hide() if ns.ToggleOverview then ns.ToggleOverview() end end)
 _, y = nil, y - (OPT_BTN_HEIGHT + 3)
 
+-- Modules section
+y = y - 4
+y = OptHeader(optPanel, "Modules", y)
+local tooltipToggle
+tooltipToggle, y = OptToggle(optPanel, "Tooltip BiS Info", y,
+    function() return not GetDB().disableTooltips end,
+    function() SlashCmdList["ADHDBIS"]("tooltip") end)
+
 -- Loot Tracker section
 y = y - 4
 y = OptHeader(optPanel, "Loot Tracker", y)
@@ -3350,6 +3359,7 @@ _, y = nil, y - (OPT_BTN_HEIGHT + 3)
 
 -- Now that both toggles exist, hook OnShow to refresh their states
 optPanel:HookScript("OnShow", function()
+    if tooltipToggle.UpdateStatus then tooltipToggle.UpdateStatus() end
     if lootTrackToggle.UpdateStatus then lootTrackToggle.UpdateStatus() end
     if debugToggle.UpdateStatus then debugToggle.UpdateStatus() end
 end)
@@ -3414,6 +3424,7 @@ local function HookTooltip()
     -- Shared tooltip handler for all tooltip types
     local function OnTooltipItem(tooltip, data)
         if not data or not data.id then return end
+        if GetDB().disableTooltips then return end
 
         local itemID = data.id
         local entries = bisLookup[itemID]
@@ -3577,6 +3588,14 @@ SlashCmdList["ADHDBIS"] = function(msg)
         else
             print("|cFF9482C9ADHDBiS:|r Overview not loaded.")
         end
+    elseif cmd == "tooltip" or cmd == "tooltips" then
+        local db = GetDB()
+        db.disableTooltips = not db.disableTooltips
+        if db.disableTooltips then
+            print("|cFF9482C9ADHDBiS:|r Tooltip BiS info |cFFFF6666disabled|r.")
+        else
+            print("|cFF9482C9ADHDBiS:|r Tooltip BiS info |cFF00FF00enabled|r.")
+        end
     elseif cmd == "version" then
         local tocVersion = C_AddOns.GetAddOnMetadata("ADHDBiS", "Version") or "?"
         print("|cFF9482C9ADHDBiS:|r v" .. tocVersion)
@@ -3604,6 +3623,7 @@ SlashCmdList["ADHDBIS"] = function(msg)
         print("  |cFFFFFFFF/adhd loot help|r - All loot tracker commands")
         print("  |cFFFFFFFF/adhd radar|r - Toggle LootRadar (M+ upgrade scanner)")
         print("  |cFFFFFFFF/adhd radar help|r - LootRadar commands")
+        print("  |cFFFFFFFF/adhd tooltip|r - Toggle BiS info on item tooltips")
         print("  |cFFFFFFFF/adhd minimap hide|r - Hide minimap button")
         print("  |cFFFFFFFF/adhd minimap show|r - Show minimap button")
         print("  |cFFFFFFFF/adhd minimap reset|r - Reset button to default position")

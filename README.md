@@ -89,6 +89,7 @@
 | `/adhd radar mode` | Toggle whisper/party chat mode |
 | `/adhd radar bop` | Toggle BoP item filter (hide untradeable items) |
 | `/adhd minimap hide/show/reset` | Control minimap button |
+| `/adhd tooltip` | Toggle BiS info on item tooltips |
 | `/adhd version` | Show addon version |
 
 **Item controls:** Click = Adventure Guide | Shift+Click = Link to chat | Right-Click = Wishlist | Shift+Right-Click = Wowhead URL
