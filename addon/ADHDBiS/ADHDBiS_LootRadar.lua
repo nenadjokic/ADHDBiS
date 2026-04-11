@@ -59,6 +59,9 @@ local function GetDB()
     if ADHDBiS_LootRadarDB.messageMode == nil then
         ADHDBiS_LootRadarDB.messageMode = "party" -- "whisper" or "party"
     end
+    if ADHDBiS_LootRadarDB.hideBoP == nil then
+        ADHDBiS_LootRadarDB.hideBoP = false
+    end
     return ADHDBiS_LootRadarDB
 end
 
@@ -99,6 +102,12 @@ local function IsBiSForSpec(itemID)
         end
     end
     return false, nil
+end
+
+local function IsBindOnPickup(itemID)
+    if not itemID then return false end
+    local _, _, _, _, _, _, _, _, _, _, _, _, _, bindType = GetItemInfo(itemID)
+    return bindType == 1 -- LE_ITEM_BIND_ON_ACQUIRE
 end
 
 local function IsUpgradeForPlayer(itemID, itemIlvl)
@@ -246,6 +255,10 @@ function CompareAndShowResults()
                     -- 3. Item was actually seen in a CHAT_MSG_LOOT event (prevents false positives from gear swaps)
                     if new and old and old.itemID ~= new.itemID
                        and lootedItems[name] and lootedItems[name][new.itemID] then
+                        -- Skip BoP items if filter is enabled
+                        if GetDB().hideBoP and IsBindOnPickup(new.itemID) then
+                            -- skip, BoP can't be traded
+                        else
                         -- This player got a new item in this slot
                         local newItemID = new.itemID
                         local newIlvl = new.ilvl
@@ -301,6 +314,7 @@ function CompareAndShowResults()
                                 slotName = slotName or SLOT_NAMES[slotID] or "?",
                             })
                         end
+                        end -- else (not BoP)
                     end
                 end
             end
@@ -345,6 +359,9 @@ local function OnLootMessage(msg)
 
     -- Skip own loot
     if playerName == UnitName("player") then return end
+
+    -- Skip BoP items if filter is enabled
+    if GetDB().hideBoP and IsBindOnPickup(itemID) then return end
 
     -- Check upgrade potential
     local isBiS, bisType = IsBiSForSpec(itemID)
@@ -492,6 +509,33 @@ local modeLabelText = radarFrame:CreateFontString(nil, "OVERLAY", "GameFontNorma
 modeLabelText:SetPoint("RIGHT", modeBtn, "LEFT", -5, 0)
 modeLabelText:SetText("|cFF888888Mode:|r")
 
+-- BoP filter toggle
+local bopBtn = CreateFrame("Button", nil, radarFrame, "UIPanelButtonTemplate")
+bopBtn:SetSize(70, 20)
+bopBtn:SetPoint("RIGHT", modeLabelText, "LEFT", -10, 0)
+local function UpdateBoPBtn()
+    local db = GetDB()
+    if db.hideBoP then
+        bopBtn:SetText("|cFF00FF00BoP: Hide|r")
+    else
+        bopBtn:SetText("|cFFFF6666BoP: Show|r")
+    end
+end
+bopBtn:SetScript("OnClick", function()
+    local db = GetDB()
+    db.hideBoP = not db.hideBoP
+    UpdateBoPBtn()
+    print("|cFF9482C9ADHDBiS LootRadar:|r BoP items " .. (db.hideBoP and "hidden" or "shown") .. ".")
+end)
+bopBtn:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+    GameTooltip:AddLine("Toggle Bind on Pickup Filter")
+    GameTooltip:AddLine("When hidden, BoP items won't appear as upgrades\nsince they can't be traded.", 1, 1, 1, true)
+    GameTooltip:Show()
+end)
+bopBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+UpdateBoPBtn()
+
 -- Status text (shown when no upgrades)
 local statusText = radarFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 statusText:SetPoint("CENTER", radarFrame, "CENTER", 0, 0)
@@ -587,6 +631,7 @@ function ShowLootRadarPanel()
 
     -- Update mode button
     modeBtn:SetText(db.messageMode == "whisper" and "Whisper" or "Party Chat")
+    UpdateBoPBtn()
 
     if #detectedUpgrades == 0 then
         statusText:SetText("|cFF666666No upgrades found from party loot.|r")
@@ -833,10 +878,17 @@ ns.ToggleLootRadar = function(subCmd)
         radarFrame:Hide()
         print("|cFF9482C9ADHDBiS LootRadar:|r Results cleared.")
 
+    elseif subCmd == "bop" then
+        local db = GetDB()
+        db.hideBoP = not db.hideBoP
+        UpdateBoPBtn()
+        print("|cFF9482C9ADHDBiS LootRadar:|r BoP items " .. (db.hideBoP and "hidden" or "shown") .. ".")
+
     elseif subCmd == "help" then
         print("|cFF9482C9ADHDBiS LootRadar|r commands:")
         print("  |cFFFFFFFF/adhd radar|r - Toggle LootRadar panel")
         print("  |cFFFFFFFF/adhd radar mode|r - Toggle whisper/party chat mode")
+        print("  |cFFFFFFFF/adhd radar bop|r - Toggle BoP item filter (hide/show)")
         print("  |cFFFFFFFF/adhd radar test|r - Test with fake data")
         print("  |cFFFFFFFF/adhd radar clear|r - Clear results")
         print("  |cFFFFFFFF/adhd radar help|r - Show this help")

@@ -86,6 +86,8 @@
 | `/adhd loot sound` | Change alert sound (10 options) |
 | `/adhd loot help` | All loot tracker commands |
 | `/adhd radar` | Toggle LootRadar (M+ upgrade scanner) |
+| `/adhd radar mode` | Toggle whisper/party chat mode |
+| `/adhd radar bop` | Toggle BoP item filter (hide untradeable items) |
 | `/adhd minimap hide/show/reset` | Control minimap button |
 | `/adhd version` | Show addon version |
 
