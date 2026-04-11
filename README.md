@@ -35,7 +35,7 @@
 - Overall, Raid, and M+ tabs with progress percentage
 - Trinket rankings with S/A/B/C/D tier system
 - Tooltip integration - hover any item anywhere to see if it's BiS
-- Data from both **Icy Veins** and **Wowhead** with in-game source switching
+- Data from **Icy Veins**, **Wowhead**, and **Murlok.io** (top player data) with in-game source switching
 
 **Loot Tracker**
 - Real-time loot tracking in raids and dungeons
@@ -98,7 +98,7 @@
 ```
 ADHDBiS-monorepo/
   addon/          WoW addon (Lua)
-  updater/        Companion app (Go) - scrapes Icy Veins & Wowhead
+  updater/        Companion app (Go) - scrapes Icy Veins, Wowhead & Murlok.io
   www/            Website & changelog
 ```
 

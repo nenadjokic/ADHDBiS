@@ -29,7 +29,7 @@ end
 -- CONSTANTS
 -- ============================================================
 
-local LATEST_COMPANION_VERSION = "1.7"  -- bump this when shipping new companion app
+local LATEST_COMPANION_VERSION = "1.8"  -- bump this when shipping new companion app
 local MIN_WIDTH = 380
 local MIN_HEIGHT = 350
 local ROW_HEIGHT = 18
@@ -634,7 +634,22 @@ end)
 
 sourceBtn:EnableMouse(true)
 sourceBtn:SetScript("OnMouseDown", function(self)
-    local allSources = {"Icy Veins", "Wowhead"}
+    -- Build source list dynamically from loaded data
+    local allSources = {}
+    if ADHDBiS_Data and ADHDBiS_Data.classes then
+        local playerClass = UnitClass("player")
+        local specIndex = GetSpecialization()
+        local specName = specIndex and select(2, GetSpecializationInfo(specIndex)) or nil
+        if playerClass and specName and ADHDBiS_Data.classes[playerClass] and ADHDBiS_Data.classes[playerClass][specName] then
+            for src, _ in pairs(ADHDBiS_Data.classes[playerClass][specName]) do
+                table.insert(allSources, src)
+            end
+            table.sort(allSources)
+        end
+    end
+    if #allSources == 0 then
+        allSources = {"Icy Veins", "Wowhead", "Murlok.io"}
+    end
     ShowDropdown(self, allSources, selectedSource, function(val)
         selectedSource = val
         sourceBtn.label:SetText(val)

@@ -51,6 +51,32 @@ func RunScrape(req ScrapeRequest, logWriter io.Writer) *ScrapeResult {
 					ScrapedAt: time.Now().UTC().Format(time.RFC3339),
 				}
 
+				// Murlok.io: single JSON API call, then continue
+				if source == "Murlok.io" {
+					url := MurlokURL(class.Slug, spec)
+					logf("  Fetching M+ data... (%s)\n", url)
+					body, err := FetchPage(url)
+					if err != nil {
+						logf("  Warning: %v\n", err)
+					} else {
+						parsed, pe := ParseMurlok(body)
+						if pe != nil {
+							logf("  Parse warning: %v\n", pe)
+						} else {
+							parsed.Name = spec.Name
+							parsed.ScrapedAt = specData.ScrapedAt
+							specData = parsed
+							result.TotalItems += len(specData.MythicGear) + len(specData.Enchants) + len(specData.Gems) + len(specData.TalentBuilds)
+							logf("    Found %d gear, %d enchants, %d gems, %d talent builds\n",
+								len(specData.MythicGear), len(specData.Enchants), len(specData.Gems), len(specData.TalentBuilds))
+						}
+					}
+					result.AllData[class.Name][spec.Name][source] = specData
+					logf("\n")
+					Delay()
+					continue
+				}
+
 				useWowhead := source == "Wowhead"
 				var urls map[string]string
 				if useWowhead {

@@ -14,11 +14,11 @@ import (
 	"adhdbis-updater/scraper"
 )
 
-const CompanionVersion = "1.7"
+const CompanionVersion = "1.8"
 
 const banner = `
 ╔═══════════════════════════════════════╗
-║     ADHDBiS Companion App v1.7       ║
+║     ADHDBiS Companion App v1.8       ║
 ║    BiS Data for any WoW Class        ║
 ╚═══════════════════════════════════════╝
 `
@@ -113,7 +113,8 @@ func main() {
 	fmt.Println("\nData source:")
 	fmt.Println("  [1] Icy Veins (recommended)")
 	fmt.Println("  [2] Wowhead")
-	fmt.Println("  [3] Both (takes longer, enables in-game source switching)")
+	fmt.Println("  [3] Murlok.io (top player data)")
+	fmt.Println("  [4] All three (enables in-game source switching)")
 	fmt.Print("Choose [1]: ")
 	sourceInput, _ := reader.ReadString('\n')
 	sourceChoice := strings.TrimSpace(sourceInput)
@@ -125,8 +126,11 @@ func main() {
 		sources = []string{"Wowhead"}
 		sourceName = "Wowhead"
 	case "3":
-		sources = []string{"Icy Veins", "Wowhead"}
-		sourceName = "Both"
+		sources = []string{"Murlok.io"}
+		sourceName = "Murlok.io"
+	case "4":
+		sources = []string{"Icy Veins", "Wowhead", "Murlok.io"}
+		sourceName = "All"
 	default:
 		sources = []string{"Icy Veins"}
 		sourceName = "Icy Veins"

@@ -328,8 +328,7 @@ local function GetStatPriority()
     if not specName then return nil end
     local classData = ADHDBiS_Data.classes[playerClass]
     if not classData or not classData[specName] then return nil end
-    for _, sourceName in ipairs({"Icy Veins", "Wowhead"}) do
-        local sourceData = classData[specName][sourceName]
+    for sourceName, sourceData in pairs(classData[specName]) do
         if sourceData and sourceData.statPriority and sourceData.statPriority ~= "" then
             return sourceData.statPriority
         end
@@ -369,8 +368,7 @@ local function GetBiSItemForSlot(slotID, gearSource)
         searchOrder = {"overall", "raid", "mythicplus"}
     end
 
-    for _, sourceName in ipairs({"Icy Veins", "Wowhead"}) do
-        local sourceData = classData[specName][sourceName]
+    for sourceName, sourceData in pairs(classData[specName]) do
         if sourceData and sourceData.gear then
             for _, gearType in ipairs(searchOrder) do
                 local gearList = sourceData.gear[gearType]

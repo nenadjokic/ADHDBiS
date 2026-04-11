@@ -129,12 +129,37 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
+    <!-- === v1.8.0 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.8.0</span>
+            <span class="release-date">April 11, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">New Feature</p>
+        <ul>
+            <li><strong>Murlok.io data source</strong> &mdash; BiS gear data from Murlok.io, which aggregates equipment from the top 50 M+ players per spec. See what the best players actually wear, with usage percentages (e.g. "Top Players (92%)"). Switch between Icy Veins, Wowhead, and Murlok.io in-game using the source dropdown</li>
+        </ul>
+
+        <p class="release-section">Companion App</p>
+        <ul>
+            <li><strong>Companion v1.8</strong> &mdash; New source menu: [1] Icy Veins, [2] Wowhead, [3] Murlok.io, [4] All three. Murlok.io uses a fast JSON API (single request per spec). GUI also updated with the new source options</li>
+            <li><strong>Version check fix</strong> &mdash; Switched version check from raw.githubusercontent.com CDN to GitHub API for more reliable update detection</li>
+        </ul>
+
+        <p class="release-section">Improvements</p>
+        <ul>
+            <li><strong>Dynamic source dropdown</strong> &mdash; The in-game source selector now reads available sources from loaded data instead of a hardcoded list. Works automatically with any combination of sources</li>
+            <li><strong>Overview source iteration</strong> &mdash; Stat priority and BiS comparison in Gear Overview now check all available sources dynamically</li>
+        </ul>
+    </div>
+
     <!-- === v1.7.9 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.7.9</span>
             <span class="release-date">April 11, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">New Feature</p>

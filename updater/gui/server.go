@@ -195,9 +195,12 @@ func StartServer(cfg *config.Config) {
 		}
 
 		var sources []string
-		if source == "Both" {
+		switch source {
+		case "Both":
 			sources = []string{"Icy Veins", "Wowhead"}
-		} else {
+		case "All":
+			sources = []string{"Icy Veins", "Wowhead", "Murlok.io"}
+		default:
 			sources = []string{source}
 		}
 
