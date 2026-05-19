@@ -129,12 +129,25 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
+    <!-- === v1.8.2 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.8.2</span>
+            <span class="release-date">May 19, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">Bug Fix</p>
+        <ul>
+            <li><strong>Inspecting other players now works correctly</strong> &mdash; Fixed a critical bug where opening the Inspect frame on other players during a dungeon or Mythic+ run would show empty gear slots. LootRadar's party scan was calling <code>ClearInspectPlayer</code> which wiped the inspect cache, and was also hijacking <code>INSPECT_READY</code> events triggered by the user. The scan now tracks its own pending inspect target, ignores user-initiated inspects, and defers the scan entirely when the Inspect frame is open</li>
+        </ul>
+    </div>
+
     <!-- === v1.8.1 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.8.1</span>
             <span class="release-date">April 11, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">New Feature</p>

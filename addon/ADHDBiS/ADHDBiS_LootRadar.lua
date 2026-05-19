@@ -47,6 +47,7 @@ local userDismissed = false  -- true when user manually closes panel; prevents r
 local inspectQueue = {}
 local inspectCallback = nil -- "snapshot" or "compare"
 local inspectRetries = {}   -- [unit] = retry count
+local addonPendingGUID = nil -- GUID of unit our scan is currently waiting on (prevents hijacking user inspects)
 
 -- ============================================================
 -- HELPERS
@@ -196,10 +197,16 @@ function ProcessInspectQueue()
         end
         return
     end
+    -- Defer scan if user has Inspect frame open, to avoid clobbering their manual inspect
+    if InspectFrame and InspectFrame:IsShown() then
+        C_Timer.After(5, ProcessInspectQueue)
+        return
+    end
     local unit = inspectQueue[1]
     if UnitExists(unit) and UnitIsConnected(unit) and CanInspect(unit) then
         table.remove(inspectQueue, 1)
         inspectRetries[unit] = nil
+        addonPendingGUID = UnitGUID(unit)
         NotifyInspect(unit)
     else
         local retries = (inspectRetries[unit] or 0) + 1
@@ -812,7 +819,10 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
 
     elseif event == "INSPECT_READY" then
         local inspectGUID = ...
-        if inspectCallback then
+        -- Only handle event if it's for an inspect WE initiated. Prevents hijacking the
+        -- user's manual inspect (and removes need for ClearInspectPlayer which wiped their cache).
+        if inspectCallback and addonPendingGUID and addonPendingGUID == inspectGUID then
+            addonPendingGUID = nil
             for i = 1, 4 do
                 local unit = "party" .. i
                 if UnitExists(unit) and UnitGUID(unit) == inspectGUID then
@@ -824,7 +834,6 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
                             partySnapshots["_new_" .. name] = SnapshotUnit(unit)
                         end
                     end
-                    ClearInspectPlayer()
                     break
                 end
             end
