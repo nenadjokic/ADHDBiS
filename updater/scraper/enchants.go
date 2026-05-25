@@ -59,12 +59,125 @@ func ParseWowheadStatPriority(body []byte) string {
 	return ""
 }
 
+// statContainerClassRe matches a CSS class of a stat-container div in the
+// new Icy Veins stat-priority widget (e.g. "stat-container crit").
+var statContainerClassRe = regexp.MustCompile(`(?i)stat-container\s+([a-zA-Z][a-zA-Z\-]*)`)
+
+// statWidgetIconMap maps the icon class shorthand to the operator we want in the
+// final stat priority string. Anything we don't recognise falls back to ">".
+var statWidgetIconMap = map[string]string{
+	"arrow-drop-right-line": ">",
+	"arrow-drop-up-line":    "~=",
+	"arrow-drop-down-line":  "~=",
+	"equal-line":            "~=",
+	"more-line":             ">",
+	"chevron-right-line":    ">",
+}
+
+// statWidgetNameMap maps the widget's CSS class shorthand or label text to the
+// canonical stat name we want to surface in the addon.
+var statWidgetNameMap = map[string]string{
+	"crit":        "Critical Strike",
+	"critical":    "Critical Strike",
+	"haste":       "Haste",
+	"mastery":     "Mastery",
+	"versatility": "Versatility",
+	"intellect":   "Intellect",
+	"strength":    "Strength",
+	"agility":     "Agility",
+	"stamina":     "Stamina",
+	"ilevel":      "Item Level",
+	"item-level":  "Item Level",
+	"itemlevel":   "Item Level",
+}
+
+// ParseStatPriorityWidget reads the Icy Veins "stat-priority-widget" block and
+// returns a string like "Critical Strike ~= Haste > Mastery > Versatility".
+// Returns "" when no widget is present.
+func ParseStatPriorityWidget(doc *goquery.Document) string {
+	widget := doc.Find(".stat-priority-widget").First()
+	if widget.Length() == 0 {
+		return ""
+	}
+	inner := widget.Find(".stat-priority-widget-inner").First()
+	if inner.Length() == 0 {
+		inner = widget
+	}
+
+	var parts []string
+	pendingOp := ""
+	inner.Children().Each(func(i int, child *goquery.Selection) {
+		class, _ := child.Attr("class")
+		classLower := strings.ToLower(class)
+		switch {
+		case strings.Contains(classLower, "stat-container"):
+			name := ""
+			if m := statContainerClassRe.FindStringSubmatch(class); len(m) >= 2 {
+				key := strings.ToLower(m[1])
+				if mapped, ok := statWidgetNameMap[key]; ok {
+					name = mapped
+				}
+			}
+			if name == "" {
+				labelText := strings.TrimSpace(child.Find(".stat-name").First().Text())
+				if labelText != "" {
+					key := strings.ToLower(strings.ReplaceAll(labelText, ".", ""))
+					key = strings.ReplaceAll(key, "  ", " ")
+					if mapped, ok := statWidgetNameMap[strings.ReplaceAll(key, " ", "")]; ok {
+						name = mapped
+					} else if strings.HasPrefix(key, "crit") {
+						name = "Critical Strike"
+					} else {
+						name = labelText
+					}
+				}
+			}
+			if name == "" {
+				return
+			}
+			if len(parts) > 0 {
+				op := pendingOp
+				if op == "" {
+					op = ">"
+				}
+				parts = append(parts, op)
+			}
+			parts = append(parts, name)
+			pendingOp = ""
+		case strings.Contains(classLower, "stat-separator"), strings.Contains(classLower, "separator"):
+			op := ""
+			child.Find("i, span, div").EachWithBreak(func(_ int, sub *goquery.Selection) bool {
+				subClass, _ := sub.Attr("class")
+				for prefix, mapped := range statWidgetIconMap {
+					if strings.Contains(subClass, prefix) {
+						op = mapped
+						return false
+					}
+				}
+				return true
+			})
+			pendingOp = op
+		}
+	})
+
+	if len(parts) < 3 {
+		return ""
+	}
+	return sanitizeStatPriority(strings.TrimSpace(strings.Join(parts, " ")))
+}
+
 // ParseStatPriority extracts stat priority from an Icy Veins enchants/gems page.
 // It looks for headings containing "Stat" and extracts priority text from nearby content.
 func ParseStatPriority(body []byte) string {
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
 	if err != nil {
 		return ""
+	}
+
+	// New Icy Veins redesign: visual stat-priority-widget.
+	if result := ParseStatPriorityWidget(doc); result != "" {
+		logf("    Found stat priority (widget): %s\n", result)
+		return result
 	}
 
 	// Strategy 1: Look for headings with "Stat" in text, then grab the next paragraph/list

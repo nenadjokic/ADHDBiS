@@ -129,12 +129,29 @@
     <h1>Changelog</h1>
     <p class="subtitle">All releases and version history. <a href="https://github.com/nenadjokic/ADHDBiS/releases" target="_blank">View on GitHub</a></p>
 
+    <!-- === v1.8.3 === -->
+    <div class="release">
+        <div class="release-header">
+            <span class="release-version">v1.8.3</span>
+            <span class="release-date">May 25, 2026</span>
+            <span class="release-tag">Latest</span>
+        </div>
+
+        <p class="release-section">Critical Bug Fix &mdash; Companion App v1.9</p>
+        <ul>
+            <li><strong>Companion app now scrapes Icy Veins correctly again</strong> &mdash; Icy Veins redesigned their gear, talents, and stat priority pages (new <code>bis_items_grid</code> cards, <code>export-string</code> talent blocks, visual stat priority widget). The v1.8 companion returned empty data on every scrape. Companion v1.9 reads the new structure and falls back to the legacy table layout if a page is not yet redesigned</li>
+            <li><strong>Wowhead now works across all specs</strong> &mdash; Previous parser was strict on single-line, three-column BBCode rows and silently produced nothing for guides that use multi-line markup (e.g. Mistweaver) or an extra enchant-icon column (e.g. Enhancement). The parser now walks each row cell-by-cell, identifies the item column by content, and validates the slot name &mdash; works on every spec page Wowhead currently publishes</li>
+            <li><strong>Stat priority extraction restored</strong> &mdash; Icy Veins moved stat priority from a text paragraph to an icon-driven widget (<code>arrow-drop-right</code> = &gt;, <code>equal-line</code> = ~=). Companion reads the widget on the dedicated stat priority page</li>
+            <li><strong>Fresh BiS data for all 40 specs from all 3 sources</strong> &mdash; Full re-scrape included: Icy Veins, Wowhead, and Murlok.io are all populated for every class/spec. 6843 data points total (vs ~3500 in v1.8.2 ship). No "data missing" messages on install</li>
+            <li><strong>Pre-release version check fix</strong> &mdash; The companion no longer blocks when the local version is newer than the published version (matters for dev/test builds only)</li>
+        </ul>
+    </div>
+
     <!-- === v1.8.2 === -->
     <div class="release">
         <div class="release-header">
             <span class="release-version">v1.8.2</span>
             <span class="release-date">May 19, 2026</span>
-            <span class="release-tag">Latest</span>
         </div>
 
         <p class="release-section">Bug Fix</p>

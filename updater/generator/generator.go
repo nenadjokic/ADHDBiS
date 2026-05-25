@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,7 +66,39 @@ func CheckCompanionUpdate(currentVersion string) (string, string, bool) {
 	if result.CompanionVersion == "" || result.CompanionVersion == currentVersion {
 		return result.CompanionVersion, result.DownloadURL, false
 	}
+	// Local pre-release / dev build (current > remote) is not outdated.
+	if compareSemver(currentVersion, result.CompanionVersion) >= 0 {
+		return result.CompanionVersion, result.DownloadURL, false
+	}
 	return result.CompanionVersion, result.DownloadURL, true
+}
+
+// compareSemver returns -1, 0, 1 when comparing a to b as dot-separated
+// numeric version strings (e.g. "1.9" vs "1.8.3"). Non-numeric parts compare
+// as zero. Missing trailing parts are treated as zero so "1.9" == "1.9.0".
+func compareSemver(a, b string) int {
+	aParts := strings.Split(a, ".")
+	bParts := strings.Split(b, ".")
+	n := len(aParts)
+	if len(bParts) > n {
+		n = len(bParts)
+	}
+	for i := 0; i < n; i++ {
+		ai, bi := 0, 0
+		if i < len(aParts) {
+			ai, _ = strconv.Atoi(aParts[i])
+		}
+		if i < len(bParts) {
+			bi, _ = strconv.Atoi(bParts[i])
+		}
+		if ai < bi {
+			return -1
+		}
+		if ai > bi {
+			return 1
+		}
+	}
+	return 0
 }
 
 // luaEscape escapes a string for safe embedding in Lua source.
@@ -136,7 +169,7 @@ func embellishmentsToEnchants(embellishments []scraper.GearItem) []scraper.Encha
 
 // GenerateLua creates ADHDBiS_Data.lua from scraped data and writes it to the AddOns folder.
 // CompanionVersion is set by the caller (main.go)
-var CompanionVersion = "1.8"
+var CompanionVersion = "1.9"
 
 func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, addOnsPath string, source string) error {
 	var sb strings.Builder

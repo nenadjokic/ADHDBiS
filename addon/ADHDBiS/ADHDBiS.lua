@@ -30,7 +30,7 @@ end
 -- CONSTANTS
 -- ============================================================
 
-local LATEST_COMPANION_VERSION = "1.8"  -- bump this when shipping new companion app
+local LATEST_COMPANION_VERSION = "1.9"  -- bump this when shipping new companion app
 local MIN_WIDTH = 380
 local MIN_HEIGHT = 350
 local ROW_HEIGHT = 18

@@ -14,11 +14,11 @@ import (
 	"adhdbis-updater/scraper"
 )
 
-const CompanionVersion = "1.8"
+const CompanionVersion = "1.9"
 
 const banner = `
 ╔═══════════════════════════════════════╗
-║     ADHDBiS Companion App v1.8       ║
+║     ADHDBiS Companion App v1.9       ║
 ║    BiS Data for any WoW Class        ║
 ╚═══════════════════════════════════════╝
 `

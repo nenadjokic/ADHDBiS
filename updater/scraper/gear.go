@@ -80,48 +80,149 @@ func extractIlvl(attr string) int {
 }
 
 // ParseGear parses BiS gear from an Icy Veins page.
-// Icy Veins structure: image_block tabs with area_1 (Overall), area_2 (M+), area_3 (Raid).
-// Items use <span data-wowhead="item=XXXXX"> pattern.
+//
+// Modern Icy Veins (post Astro redesign) layout:
+//
+//	<div class="image_block_header_buttons">
+//	  <span id="bis_0_0_button">Overall</span>
+//	  <span id="bis_0_1_button">Mythic+</span>
+//	  <span id="bis_0_2_button">Raid</span>
+//	</div>
+//	<div id="bis_0_0"><div class="bis_items_grid">
+//	   <div class="bis_item">
+//	     <span class="spell_icon_span" data-wowhead="item=ID&bonus=Y">
+//	       <img...><span data-wowhead="item=ID..." class="qN">NAME</span>
+//	     </span>
+//	     <span class="bis_item_slot">SLOT</span>
+//	     <div class="bis_item_footer"><span class="bis_item_drop"><a>SOURCE</a></span></div>
+//	   </div>
+//	   ...
+//	</div></div>
+//
+// Legacy layout (pre-redesign) used <table> rows inside area_N divs. We keep
+// a table-based fallback so older or differently structured pages still parse.
 func ParseGear(body []byte) (raid []GearItem, mythic []GearItem, overall []GearItem, err error) {
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("parsing HTML: %w", err)
 	}
 
-	// Identify which area_N maps to raid/mythicplus/overall
-	areaMapping := map[string]string{}
-	doc.Find(".image_block_header_buttons span").Each(func(i int, s *goquery.Selection) {
-		id, exists := s.Attr("id")
-		if !exists {
+	// Map section IDs (bis_0_N or area_N) to category by reading button labels.
+	sectionMapping := map[string]string{} // sectionID -> overall|mythicplus|raid
+	doc.Find(".image_block_header_buttons span[id]").Each(func(i int, s *goquery.Selection) {
+		id, _ := s.Attr("id")
+		if !strings.HasSuffix(id, "_button") {
 			return
 		}
-		text := strings.ToLower(s.Text())
-		areaID := strings.TrimSuffix(id, "_button")
-
-		if strings.Contains(text, "raid") {
-			areaMapping[areaID] = "raid"
-		} else if strings.Contains(text, "mythic") || strings.Contains(text, "m+") {
-			areaMapping[areaID] = "mythicplus"
-		} else if strings.Contains(text, "overall") {
-			areaMapping[areaID] = "overall"
+		sectionID := strings.TrimSuffix(id, "_button")
+		text := strings.ToLower(strings.TrimSpace(s.Text()))
+		switch {
+		case strings.Contains(text, "raid"):
+			sectionMapping[sectionID] = "raid"
+		case strings.Contains(text, "mythic"), strings.Contains(text, "m+"):
+			sectionMapping[sectionID] = "mythicplus"
+		case strings.Contains(text, "overall"):
+			sectionMapping[sectionID] = "overall"
 		}
 	})
 
-	parseTable := func(areaID string) []GearItem {
+	// parseBisGrid parses .bis_item cards inside a #sectionID container.
+	parseBisGrid := func(sectionID string) []GearItem {
 		var items []GearItem
-		selector := fmt.Sprintf("#%s table tr", areaID)
-		doc.Find(selector).Each(func(i int, tr *goquery.Selection) {
-			tds := tr.Find("td")
-			if tds.Length() < 2 {
-				return
-			}
-
-			slotRaw := strings.TrimSpace(tds.Eq(0).Text())
+		fingerCount := 0
+		trinketCount := 0
+		doc.Find(fmt.Sprintf("#%s .bis_item", sectionID)).Each(func(i int, card *goquery.Selection) {
+			slotRaw := strings.TrimSpace(card.Find(".bis_item_slot").First().Text())
 			slot := NormalizeSlot(slotRaw)
 			if slot == "" {
 				return
 			}
 
+			// Pick the inner data-wowhead span (the one with the readable name -
+			// class starts with "q" + quality digit, e.g. q3, q4).
+			var itemID, ilvl int
+			var bonusIDs, name string
+			card.Find("span[data-wowhead]").EachWithBreak(func(j int, span *goquery.Selection) bool {
+				cls, _ := span.Attr("class")
+				if !strings.HasPrefix(cls, "q") {
+					return true // keep looking
+				}
+				wh, _ := span.Attr("data-wowhead")
+				if !strings.Contains(wh, "item=") {
+					return true
+				}
+				txt := strings.TrimSpace(span.Text())
+				if txt == "" {
+					return true
+				}
+				itemID = extractItemID(wh)
+				bonusIDs = extractBonusIDs(wh)
+				ilvl = extractIlvl(wh)
+				name = txt
+				return false // stop
+			})
+
+			// Backwards-compatible fallback: take the outer spell_icon_span data-wowhead
+			// if no quality-class child was found.
+			if itemID == 0 {
+				card.Find("span[data-wowhead]").EachWithBreak(func(j int, span *goquery.Selection) bool {
+					wh, _ := span.Attr("data-wowhead")
+					if !strings.Contains(wh, "item=") {
+						return true
+					}
+					itemID = extractItemID(wh)
+					bonusIDs = extractBonusIDs(wh)
+					ilvl = extractIlvl(wh)
+					name = strings.TrimSpace(span.Text())
+					return false
+				})
+			}
+
+			if itemID == 0 || name == "" {
+				return
+			}
+
+			// Source label: prefer .bis_item_drop, else any anchor in footer.
+			source := strings.TrimSpace(card.Find(".bis_item_drop").First().Text())
+			if source == "" {
+				source = strings.TrimSpace(card.Find(".bis_item_footer a").First().Text())
+			}
+
+			// Handle Ring/Trinket numbering across this section.
+			actualSlot := slot
+			if slot == "Finger1" {
+				fingerCount++
+				if fingerCount == 2 {
+					actualSlot = "Finger2"
+				}
+			} else if slot == "Trinket1" {
+				trinketCount++
+				if trinketCount == 2 {
+					actualSlot = "Trinket2"
+				}
+			}
+
+			items = append(items, GearItem{
+				Slot: actualSlot, ItemID: itemID, Name: name, Source: source,
+				BonusIDs: bonusIDs, Ilvl: ilvl,
+			})
+		})
+		return items
+	}
+
+	// parseLegacyTable parses the old <table> structure inside #sectionID.
+	parseLegacyTable := func(sectionID string) []GearItem {
+		var items []GearItem
+		doc.Find(fmt.Sprintf("#%s table tr", sectionID)).Each(func(i int, tr *goquery.Selection) {
+			tds := tr.Find("td")
+			if tds.Length() < 2 {
+				return
+			}
+			slotRaw := strings.TrimSpace(tds.Eq(0).Text())
+			slot := NormalizeSlot(slotRaw)
+			if slot == "" {
+				return
+			}
 			tds.Eq(1).Find("span[data-wowhead]").Each(func(j int, span *goquery.Selection) {
 				wh, _ := span.Attr("data-wowhead")
 				if !strings.Contains(wh, "item=") {
@@ -132,25 +233,21 @@ func ParseGear(body []byte) (raid []GearItem, mythic []GearItem, overall []GearI
 				if itemID == 0 || name == "" {
 					return
 				}
-
 				bonusIDs := extractBonusIDs(wh)
 				ilvl := extractIlvl(wh)
-
 				source := ""
 				if tds.Length() >= 3 {
 					source = strings.TrimSpace(tds.Eq(2).Text())
 				}
-
-				// Handle second item in same slot cell
 				actualSlot := slot
 				if j > 0 {
-					if slot == "Finger1" {
+					switch slot {
+					case "Finger1":
 						actualSlot = "Finger2"
-					} else if slot == "Trinket1" {
+					case "Trinket1":
 						actualSlot = "Trinket2"
 					}
 				}
-
 				items = append(items, GearItem{
 					Slot: actualSlot, ItemID: itemID, Name: name, Source: source,
 					BonusIDs: bonusIDs, Ilvl: ilvl,
@@ -160,10 +257,21 @@ func ParseGear(body []byte) (raid []GearItem, mythic []GearItem, overall []GearI
 		return items
 	}
 
-	// Parse by area mapping
-	for areaID, areaType := range areaMapping {
-		items := parseTable(areaID)
-		switch areaType {
+	parseSection := func(sectionID string) []GearItem {
+		items := parseBisGrid(sectionID)
+		if len(items) == 0 {
+			items = parseLegacyTable(sectionID)
+		}
+		return items
+	}
+
+	// Parse known sections by mapping.
+	for sectionID, secType := range sectionMapping {
+		items := parseSection(sectionID)
+		if len(items) == 0 {
+			continue
+		}
+		switch secType {
 		case "raid":
 			raid = items
 		case "mythicplus":
@@ -173,14 +281,19 @@ func ParseGear(body []byte) (raid []GearItem, mythic []GearItem, overall []GearI
 		}
 	}
 
-	// Fallback: try standard area IDs
+	// Fallback when no mapping resolved: try the conventional layouts.
 	if len(raid) == 0 && len(mythic) == 0 && len(overall) == 0 {
-		overall = parseTable("area_1")
-		mythic = parseTable("area_2")
-		raid = parseTable("area_3")
+		overall = parseSection("bis_0_0")
+		mythic = parseSection("bis_0_1")
+		raid = parseSection("bis_0_2")
+	}
+	if len(raid) == 0 && len(mythic) == 0 && len(overall) == 0 {
+		overall = parseSection("area_1")
+		mythic = parseSection("area_2")
+		raid = parseSection("area_3")
 	}
 
-	// If only overall exists, use it as fallback for raid/mythic
+	// If only overall exists, mirror it into raid/mythic so the addon always has data.
 	if len(overall) > 0 {
 		if len(raid) == 0 {
 			raid = overall
@@ -190,42 +303,57 @@ func ParseGear(body []byte) (raid []GearItem, mythic []GearItem, overall []GearI
 		}
 	}
 
-	// Last resort: any table with gear-slot first columns
-	if len(raid) == 0 {
-		validSlots := map[string]bool{
-			"Head": true, "Neck": true, "Shoulders": true, "Back": true,
-			"Chest": true, "Wrist": true, "Hands": true, "Waist": true,
-			"Legs": true, "Feet": true, "Finger1": true, "Finger2": true,
-			"Trinket1": true, "Trinket2": true, "Weapon": true, "OffHand": true,
-		}
-		doc.Find("table tr").Each(func(i int, tr *goquery.Selection) {
-			tds := tr.Find("td")
-			if tds.Length() < 2 {
+	// Last-resort scan: any .bis_item cards or any gear table on the page.
+	if len(raid) == 0 && len(mythic) == 0 && len(overall) == 0 {
+		var scanned []GearItem
+		fingerCount := 0
+		trinketCount := 0
+		doc.Find(".bis_item").Each(func(i int, card *goquery.Selection) {
+			slotRaw := strings.TrimSpace(card.Find(".bis_item_slot").First().Text())
+			slot := NormalizeSlot(slotRaw)
+			if slot == "" {
 				return
 			}
-			slot := NormalizeSlot(strings.TrimSpace(tds.Eq(0).Text()))
-			if !validSlots[slot] {
-				return
-			}
-			tds.Eq(1).Find("span[data-wowhead]").Each(func(j int, span *goquery.Selection) {
+			var itemID, ilvl int
+			var bonusIDs, name string
+			card.Find("span[data-wowhead]").EachWithBreak(func(j int, span *goquery.Selection) bool {
+				cls, _ := span.Attr("class")
+				if !strings.HasPrefix(cls, "q") {
+					return true
+				}
 				wh, _ := span.Attr("data-wowhead")
 				if !strings.Contains(wh, "item=") {
-					return
+					return true
 				}
-				itemID := extractItemID(wh)
-				bonusIDs := extractBonusIDs(wh)
-				ilvl := extractIlvl(wh)
-				name := strings.TrimSpace(span.Text())
-				source := ""
-				if tds.Length() >= 3 {
-					source = strings.TrimSpace(tds.Eq(2).Text())
-				}
-				if itemID > 0 && name != "" {
-					raid = append(raid, GearItem{Slot: slot, ItemID: itemID, Name: name, Source: source, BonusIDs: bonusIDs, Ilvl: ilvl})
-				}
+				itemID = extractItemID(wh)
+				bonusIDs = extractBonusIDs(wh)
+				ilvl = extractIlvl(wh)
+				name = strings.TrimSpace(span.Text())
+				return false
 			})
+			if itemID == 0 || name == "" {
+				return
+			}
+			source := strings.TrimSpace(card.Find(".bis_item_drop").First().Text())
+			actualSlot := slot
+			if slot == "Finger1" {
+				fingerCount++
+				if fingerCount == 2 {
+					actualSlot = "Finger2"
+				}
+			} else if slot == "Trinket1" {
+				trinketCount++
+				if trinketCount == 2 {
+					actualSlot = "Trinket2"
+				}
+			}
+			scanned = append(scanned, GearItem{Slot: actualSlot, ItemID: itemID, Name: name, Source: source, BonusIDs: bonusIDs, Ilvl: ilvl})
 		})
-		mythic = raid
+		if len(scanned) > 0 {
+			raid = scanned
+			mythic = scanned
+			overall = scanned
+		}
 	}
 
 	logf("    Found %d overall, %d raid, %d M+ items\n", len(overall), len(raid), len(mythic))

@@ -112,10 +112,36 @@ var wowheadItemRegex = regexp.MustCompile(`\[item=(\d+)((?:\s+[^\]]*)?)\]`)
 var wowheadBonusRegex = regexp.MustCompile(`bonus=([0-9:]+)`)
 var wowheadIlvlRegex = regexp.MustCompile(`ilvl=(\d+)`)
 
-// gearRowRegex matches a table row with 3 columns: slot, item(s), source
-var gearRowRegex = regexp.MustCompile(`\[tr\]\[td\]([^[]*)\[/td\]\[td\](.*?)\[/td\]\[td\](.*?)\[/td\]\[/tr\]`)
+// gearRowRegex matches a table row with 3 columns: slot, item(s), source.
+// Wowhead markup mixes single-line and multi-line BBCode formatting, so the
+// row regex must tolerate whitespace/newlines between tags and allow td
+// attribute lists (e.g. "[td background=c10]"). (?s) lets "." match newlines.
+var gearRowRegex = regexp.MustCompile(`(?s)\[tr\]\s*\[td[^\]]*\](.*?)\[/td\]\s*\[td[^\]]*\](.*?)\[/td\]\s*\[td[^\]]*\](.*?)\[/td\]\s*\[/tr\]`)
+
+// trBlockRegex matches each <tr>...</tr> in markup, tolerant of newlines.
+var trBlockRegex = regexp.MustCompile(`(?s)\[tr\](.*?)\[/tr\]`)
+
+// tdCellRegex matches each <td>...</td> cell inside a row.
+var tdCellRegex = regexp.MustCompile(`(?s)\[td[^\]]*\](.*?)\[/td\]`)
+
+// validGearSlots is the canonical set of gear slot names. We use it to reject
+// rows from non-gear tables (e.g. tier rankings whose first column is "1"/"2").
+var validGearSlots = map[string]bool{
+	"Head": true, "Neck": true, "Shoulders": true, "Back": true,
+	"Chest": true, "Wrist": true, "Hands": true, "Waist": true,
+	"Legs": true, "Feet": true, "Finger1": true, "Finger2": true,
+	"Trinket1": true, "Trinket2": true, "Weapon": true, "OffHand": true,
+	"MainHand": true,
+}
 
 // ParseWowheadGear parses BiS gear from a Wowhead guide page.
+//
+// Wowhead guide pages use a BBCode-like markup printed by WH.markup.printHtml.
+// Gear tables have variable column counts: most guides use 3 columns
+// (Slot | Item | Source) but some healer/melee tables add an extra column for
+// the recommended enchant icon, ending up with 4 columns. We tolerate both by
+// walking each row cell-by-cell and identifying the slot, gear item, and
+// source columns by their content rather than by fixed index.
 func ParseWowheadGear(body []byte) (raid []GearItem, mythic []GearItem, err error) {
 	markup := extractMarkup(body)
 	if markup == "" {
@@ -124,22 +150,55 @@ func ParseWowheadGear(body []byte) (raid []GearItem, mythic []GearItem, err erro
 	}
 
 	names := extractItemNames(body)
-
-	// Find tabs for raid vs mythic+ vs overall
-	// Wowhead uses [tabs...][tab name="Overall BiS"...]...[/tab][/tabs]
-	// For now, parse the first gear table found (usually "Overall BiS")
-	rows := gearRowRegex.FindAllStringSubmatch(markup, -1)
-
 	fingerCount := 0
 	trinketCount := 0
 
-	for _, row := range rows {
-		slotRaw := strings.TrimSpace(row[1])
-		itemCell := row[2]
-		sourceCell := row[3]
+	for _, row := range trBlockRegex.FindAllStringSubmatch(markup, -1) {
+		rowBody := row[1]
+		cellMatches := tdCellRegex.FindAllStringSubmatch(rowBody, -1)
+		if len(cellMatches) < 2 {
+			continue
+		}
+		cells := make([]string, len(cellMatches))
+		for i, m := range cellMatches {
+			cells[i] = m[1]
+		}
+
+		slotRaw := strings.TrimSpace(extractTextFromMarkup(cells[0]))
+		if slotRaw == "" || strings.EqualFold(slotRaw, "Slot") {
+			continue
+		}
+
+		// Find the cell containing the actual gear item. Items are typically
+		// wrapped in [color=qN][item=ID bonus=...][/color] or plain [item=ID ...].
+		// Enchant-icon columns use [url=item=ID][icon ...][/url] which we must
+		// skip — wowheadItemRegex requires "[item=" so url=item= does not match.
+		itemCellIdx := -1
+		var itemMatches [][]string
+		for i := 1; i < len(cells); i++ {
+			matches := wowheadItemRegex.FindAllStringSubmatch(cells[i], -1)
+			if len(matches) > 0 {
+				itemCellIdx = i
+				itemMatches = matches
+				break
+			}
+		}
+		if itemCellIdx < 0 {
+			continue
+		}
+
+		// Source column: any later cell, preferring one with link/text content.
+		source := ""
+		for j := itemCellIdx + 1; j < len(cells); j++ {
+			candidate := strings.TrimSpace(extractTextFromMarkup(cells[j]))
+			if candidate != "" {
+				source = candidate
+				break
+			}
+		}
 
 		slot := NormalizeSlot(slotRaw)
-		if slot == "" {
+		if !validGearSlots[slot] {
 			continue
 		}
 
@@ -161,11 +220,6 @@ func ParseWowheadGear(body []byte) (raid []GearItem, mythic []GearItem, err erro
 			}
 		}
 
-		// Extract source from [url...]Name[/url] or plain text
-		source := extractTextFromMarkup(sourceCell)
-
-		// Extract item IDs, bonus IDs, and ilvl
-		itemMatches := wowheadItemRegex.FindAllStringSubmatch(itemCell, -1)
 		for _, im := range itemMatches {
 			itemID, _ := strconv.Atoi(im[1])
 			if itemID == 0 {
@@ -176,7 +230,6 @@ func ParseWowheadGear(body []byte) (raid []GearItem, mythic []GearItem, err erro
 				name = fmt.Sprintf("Item %d", itemID)
 			}
 
-			// Extract bonus IDs and ilvl from the extra params (e.g. " bonus=10356:1540 ilvl=639")
 			extra := im[2]
 			bonusIDs := ""
 			ilvl := 0
@@ -198,7 +251,7 @@ func ParseWowheadGear(body []byte) (raid []GearItem, mythic []GearItem, err erro
 		}
 	}
 
-	// For Wowhead, use same list for both raid and M+ unless we find separate tabs
+	// For Wowhead, use same list for both raid and M+ unless we find separate tabs.
 	mythic = make([]GearItem, len(raid))
 	copy(mythic, raid)
 
@@ -209,14 +262,16 @@ func ParseWowheadGear(body []byte) (raid []GearItem, mythic []GearItem, err erro
 // --- Enchants/Gems/Consumables parsing ---
 
 // enchantRowRegex matches enchant table rows: [tr][td]Slot[/td][td align=center][item=XXX][/td][/tr]
-// Note: some Wowhead rows have extra ] between [/td] and [/tr]
-var enchantRowRegex = regexp.MustCompile(`\[tr\]\[td\]([^[]*)\[/td\]\[td[^\]]*\](.*?)\[/td\]\]?\[/tr\]`)
+// Note: some Wowhead rows have extra ] between [/td] and [/tr], and some
+// guides format rows across multiple lines with whitespace between tags.
+var enchantRowRegex = regexp.MustCompile(`(?s)\[tr\]\s*\[td[^\]]*\](.*?)\[/td\]\s*\[td[^\]]*\](.*?)\[/td\]\]?\s*\[/tr\]`)
 
 // gemListRegex matches gems in list items: [li][b]Type[/b]: [item=XXX][/li]
 var gemListRegex = regexp.MustCompile(`\[li\]\[b\]([^[]*)\[/b\]:\s*\[item=(\d+)[^\]]*\]\[/li\]`)
 
-// consumableRowRegex matches consumable table rows
-var consumableRowRegex = regexp.MustCompile(`\[tr\]\[td\]([^[]*)\[/td\]\[td[^\]]*\]\[item=(\d+)[^\]]*\](?:.*?\[item=(\d+)[^\]]*\])?\[/td\]\[/tr\]`)
+// consumableRowRegex matches consumable table rows.
+// Tolerates whitespace between BBCode tags so multi-line markup also matches.
+var consumableRowRegex = regexp.MustCompile(`(?s)\[tr\]\s*\[td[^\]]*\](.*?)\[/td\]\s*\[td[^\]]*\]\s*\[item=(\d+)[^\]]*\](?:.*?\[item=(\d+)[^\]]*\])?\s*\[/td\]\s*\[/tr\]`)
 
 // ParseWowheadEnchants parses enchants, gems, and consumables from a Wowhead guide page.
 func ParseWowheadEnchants(body []byte) (enchants []EnchantItem, gems []GemItem, consumables []Consumable, err error) {

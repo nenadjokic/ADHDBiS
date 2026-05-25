@@ -22,8 +22,18 @@ func isValidWoWTalentCode(code string) bool {
 }
 
 // ParseTalents parses talent builds from an Icy Veins talents page.
-// Talent builds on Icy Veins are in image_block tabs with area_N_button labels.
-// The actual build hashes are in <script> tags that init MidnightTalentCalculator.
+//
+// Modern Icy Veins layout exposes WoW-format codes directly in:
+//
+//	<details class="export-string ...">
+//	  <summary>...<span class="export-string__title">Name</span>...</summary>
+//	  <div class="export-string__body">
+//	    <div class="export-string__code-container">
+//	      <span class="export-string__code">CXXXXXXXX...</span>
+//
+// Legacy layout used MidnightTalentCalculator with internal hash strings that
+// required base64-style conversion. We try the new structure first and fall
+// back to the legacy path so old or partially migrated guides still work.
 func ParseTalents(body []byte, classSlug string) (builds []TalentBuild, err error) {
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
 	if err != nil {
@@ -31,6 +41,49 @@ func ParseTalents(body []byte, classSlug string) (builds []TalentBuild, err erro
 	}
 
 	bodyStr := string(body)
+
+	// === NEW: export-string blocks (codes already in WoW format) ===
+	seenCodes := map[string]bool{}
+	doc.Find(".export-string").Each(func(i int, det *goquery.Selection) {
+		name := strings.TrimSpace(det.Find(".export-string__title").First().Text())
+		code := strings.TrimSpace(det.Find(".export-string__code").First().Text())
+		if code == "" {
+			return
+		}
+		if !isValidWoWTalentCode(code) {
+			return
+		}
+		if seenCodes[code] {
+			return
+		}
+		seenCodes[code] = true
+
+		if name == "" {
+			name = fmt.Sprintf("Build %d", len(builds)+1)
+		}
+
+		context := "general"
+		nameLower := strings.ToLower(name)
+		switch {
+		case strings.Contains(nameLower, "single") || strings.Contains(nameLower, "raid") ||
+			strings.Contains(nameLower, "boss") || strings.Contains(nameLower, "st "):
+			context = "raid"
+		case strings.Contains(nameLower, "aoe") || strings.Contains(nameLower, "mythic") ||
+			strings.Contains(nameLower, "m+") || strings.Contains(nameLower, "dungeon"):
+			context = "mythicplus"
+		case strings.Contains(nameLower, "delve"):
+			context = "delves"
+		case strings.Contains(nameLower, "pvp"):
+			context = "pvp"
+		}
+
+		builds = append(builds, TalentBuild{Name: name, Code: code, Context: context})
+	})
+
+	if len(builds) > 0 {
+		logf("    Found %d talent builds\n", len(builds))
+		return builds, nil
+	}
 
 	// Step 1: Collect tab button labels (build names) mapped to builder IDs
 	// Tab buttons: <span id="area_N_button">Build Name</span>
