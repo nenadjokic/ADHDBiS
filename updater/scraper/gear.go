@@ -102,6 +102,7 @@ func extractIlvl(attr string) int {
 // Legacy layout (pre-redesign) used <table> rows inside area_N divs. We keep
 // a table-based fallback so older or differently structured pages still parse.
 func ParseGear(body []byte) (raid []GearItem, mythic []GearItem, overall []GearItem, err error) {
+	body = normalizeIcyVeinsTooltips(body)
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("parsing HTML: %w", err)
@@ -366,6 +367,7 @@ var tierRegex = regexp.MustCompile(`(?i)^([SABCD])\s*Tier`)
 // ParseTrinketRankings extracts trinket tier rankings from an Icy Veins BiS gear page.
 // Returns an empty slice (not error) if no rankings are found.
 func ParseTrinketRankings(body []byte) ([]TrinketRanking, error) {
+	body = normalizeIcyVeinsTooltips(body)
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("parsing HTML: %w", err)

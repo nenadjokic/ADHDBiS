@@ -102,6 +102,16 @@ func compareSemver(a, b string) int {
 }
 
 // luaEscape escapes a string for safe embedding in Lua source.
+// hasAnyData reports whether a scraped source produced anything worth writing.
+func hasAnyData(d *scraper.SpecData) bool {
+	if d == nil {
+		return false
+	}
+	return len(d.OverallGear) > 0 || len(d.RaidGear) > 0 || len(d.MythicGear) > 0 ||
+		len(d.Enchants) > 0 || len(d.Gems) > 0 || len(d.Consumables) > 0 ||
+		len(d.TalentBuilds) > 0 || len(d.TrinketRankings) > 0 || d.StatPriority != ""
+}
+
 func luaEscape(s string) string {
 	s = strings.ReplaceAll(s, "\\", "\\\\")
 	s = strings.ReplaceAll(s, "\"", "\\\"")
@@ -169,7 +179,7 @@ func embellishmentsToEnchants(embellishments []scraper.GearItem) []scraper.Encha
 
 // GenerateLua creates ADHDBiS_Data.lua from scraped data and writes it to the AddOns folder.
 // CompanionVersion is set by the caller (main.go)
-var CompanionVersion = "1.9"
+var CompanionVersion = "2.0"
 
 func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, addOnsPath string, source string) error {
 	var sb strings.Builder
@@ -198,6 +208,11 @@ func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, add
 			sb.WriteString(fmt.Sprintf("            [\"%s\"] = {\n", luaEscape(specName)))
 
 			for sourceName, data := range sources {
+				// Skip a source that fetched nothing (blocked region, site outage, parser
+				// broken by a redesign), so the addon does not offer an empty source.
+				if !hasAnyData(data) {
+					continue
+				}
 				sb.WriteString(fmt.Sprintf("                [\"%s\"] = {\n", luaEscape(sourceName)))
 
 				// Timestamps
@@ -310,22 +325,22 @@ func GenerateLua(allData map[string]map[string]map[string]*scraper.SpecData, add
 
 	sb.WriteString("    },\n")
 
-	// Crest data (hardcoded per season - Midnight Season 1)
+	// Crest data (hardcoded per season - Midnight Season 2 Mistcrests, IDs from Icy Veins 2026-11-08)
 	sb.WriteString("    crests = {\n")
-	sb.WriteString("        { name = \"Adventurer\", currencyID = 3383, cap = 500 },\n")
-	sb.WriteString("        { name = \"Veteran\", currencyID = 3341, cap = 500 },\n")
-	sb.WriteString("        { name = \"Champion\", currencyID = 3343, cap = 500 },\n")
-	sb.WriteString("        { name = \"Hero\", currencyID = 3345, cap = 500 },\n")
-	sb.WriteString("        { name = \"Myth\", currencyID = 3347, cap = 200 },\n")
+	sb.WriteString("        { name = \"Adventurer\", currencyID = 3442, cap = 500 },\n")
+	sb.WriteString("        { name = \"Veteran\", currencyID = 3443, cap = 500 },\n")
+	sb.WriteString("        { name = \"Champion\", currencyID = 3444, cap = 500 },\n")
+	sb.WriteString("        { name = \"Hero\", currencyID = 3445, cap = 500 },\n")
+	sb.WriteString("        { name = \"Myth\", currencyID = 3446, cap = 200 },\n")
 	sb.WriteString("    },\n")
 
-	// Upgrade track definitions (hardcoded per season)
+	// Upgrade track definitions (hardcoded per season - Midnight Season 2)
 	sb.WriteString("    upgradeTracks = {\n")
-	sb.WriteString("        { name = \"Adventurer\", base = 220, top = 237, ranks = 6 },\n")
-	sb.WriteString("        { name = \"Veteran\", base = 233, top = 250, ranks = 6 },\n")
-	sb.WriteString("        { name = \"Champion\", base = 246, top = 263, ranks = 6 },\n")
-	sb.WriteString("        { name = \"Hero\", base = 259, top = 276, ranks = 6 },\n")
-	sb.WriteString("        { name = \"Myth\", base = 272, top = 289, ranks = 6 },\n")
+	sb.WriteString("        { name = \"Adventurer\", base = 266, top = 282, ranks = 6 },\n")
+	sb.WriteString("        { name = \"Veteran\", base = 279, top = 295, ranks = 6 },\n")
+	sb.WriteString("        { name = \"Champion\", base = 292, top = 308, ranks = 6 },\n")
+	sb.WriteString("        { name = \"Hero\", base = 305, top = 321, ranks = 6 },\n")
+	sb.WriteString("        { name = \"Myth\", base = 318, top = 334, ranks = 6 },\n")
 	sb.WriteString("    },\n")
 
 	sb.WriteString("}\n")

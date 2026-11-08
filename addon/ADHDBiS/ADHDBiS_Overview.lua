@@ -60,22 +60,22 @@ local CREST_COLORS = {
     ["Myth"]       = { r = 1.00, g = 0.80, b = 0.00 },
 }
 
--- Fallback crest data (used when ADHDBiS_Data is not available)
+-- Fallback crest data (used when ADHDBiS_Data is not available). Midnight Season 2 Mistcrests.
 local CRESTS_FALLBACK = {
-    { name = "Adventurer", id = 3383, cap = 500 },
-    { name = "Veteran",    id = 3341, cap = 500 },
-    { name = "Champion",   id = 3343, cap = 500 },
-    { name = "Hero",       id = 3345, cap = 500 },
-    { name = "Myth",       id = 3347, cap = 200 },
+    { name = "Adventurer", id = 3442, cap = 500 },
+    { name = "Veteran",    id = 3443, cap = 500 },
+    { name = "Champion",   id = 3444, cap = 500 },
+    { name = "Hero",       id = 3445, cap = 500 },
+    { name = "Myth",       id = 3446, cap = 200 },
 }
 
 -- Fallback upgrade tracks (used when ADHDBiS_Data is not available)
 local TRACKS_FALLBACK = {
-    { name = "Myth",       base = 272, top = 289 },
-    { name = "Hero",       base = 259, top = 276 },
-    { name = "Champion",   base = 246, top = 263 },
-    { name = "Veteran",    base = 233, top = 250 },
-    { name = "Adventurer", base = 220, top = 237 },
+    { name = "Myth",       base = 318, top = 334 },
+    { name = "Hero",       base = 305, top = 321 },
+    { name = "Champion",   base = 292, top = 308 },
+    { name = "Veteran",    base = 279, top = 295 },
+    { name = "Adventurer", base = 266, top = 282 },
 }
 
 -- Build CRESTS and TRACKS from companion data or use fallbacks
@@ -460,7 +460,7 @@ statPrioText:SetTextColor(0.7, 0.7, 0.7)
 
 local crestHeader = overviewFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 crestHeader:SetPoint("TOPLEFT", statPrioText, "BOTTOMLEFT", 0, -10)
-crestHeader:SetText("|cFFFFD100Dawncrest Tracker|r")
+crestHeader:SetText("|cFFFFD100Crest Tracker|r")
 
 local crestBars = {}
 local function CreateCrestBars()

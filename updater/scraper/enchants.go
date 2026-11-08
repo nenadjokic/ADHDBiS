@@ -403,6 +403,7 @@ func stripBBCode(s string) string {
 //   - Gems: <span data-wowhead="item=XXXXX"> in section with "gems" heading
 //   - Consumables: organized by sub-headings (Flasks, Potions, Food, Weapon Runes, Augment Runes)
 func ParseEnchants(body []byte) (enchants []EnchantItem, gems []GemItem, consumables []Consumable, err error) {
+	body = normalizeIcyVeinsTooltips(body)
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("parsing HTML: %w", err)

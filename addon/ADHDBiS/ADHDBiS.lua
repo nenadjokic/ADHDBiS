@@ -30,7 +30,7 @@ end
 -- CONSTANTS
 -- ============================================================
 
-local LATEST_COMPANION_VERSION = "1.9"  -- bump this when shipping new companion app
+local LATEST_COMPANION_VERSION = "2.0"  -- bump this when shipping new companion app
 local MIN_WIDTH = 380
 local MIN_HEIGHT = 350
 local ROW_HEIGHT = 18
@@ -3327,7 +3327,18 @@ OptButton(optPanel, "Loot Summary", y, function()
         { text = "Raid", notCheckable = true, func = function() SlashCmdList["ADHDBIS"]("loot summary raid"); CloseDropDownMenus() end },
         { text = "Guild", notCheckable = true, func = function() SlashCmdList["ADHDBIS"]("loot summary guild"); CloseDropDownMenus() end },
     }
-    EasyMenu(menuList, menuFrame, "cursor", 0, 0, "MENU")
+    -- EasyMenu was removed from retail. Use the MenuUtil context menu and keep
+    -- EasyMenu only as a fallback for clients that still have it.
+    if MenuUtil and MenuUtil.CreateContextMenu then
+        MenuUtil.CreateContextMenu(UIParent, function(_, root)
+            root:CreateTitle("Loot Summary")
+            for _, item in ipairs(menuList) do
+                root:CreateButton(item.text, item.func)
+            end
+        end)
+    elseif EasyMenu then
+        EasyMenu(menuList, menuFrame, "cursor", 0, 0, "MENU")
+    end
 end)
 _, y = nil, y - (OPT_BTN_HEIGHT + 3)
 OptButton(optPanel, "Show Wishlist", y, function() SlashCmdList["ADHDBIS"]("loot wishlist") end)
